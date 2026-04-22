@@ -1,6 +1,6 @@
 # DurbX
 
-`DurbX` is an async directory enumeration tool for web targets. It takes a target URL and a wordlist, tests paths concurrently, and prints live hits as they are found.
+`DurbX` is an Directory enumeration tool for web targets. It takes a target URL and a wordlist, tests paths concurrently, and prints live hits as they are found.
 
 ## Features
 
