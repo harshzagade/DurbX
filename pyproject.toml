@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "DurbX"
+version = "0.1.0"
+description = "Async directory enumeration tool for web targets."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "aiohttp>=3.13.0",
+  "colorama>=0.4.6",
+]
+authors = [
+  { name = "OpenAI Codex" }
+]
+license = { text = "MIT" }
+keywords = ["cli", "enumeration", "footprinting", "directories", "security"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "License :: OSI Approved :: MIT License",
+  "Environment :: Console",
+  "Topic :: Security",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/DurbX"
+Repository = "https://github.com/yourusername/DurbX"
+
+[project.scripts]
+durbx = "durbx.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
