@@ -1,9 +1,7 @@
-from __future__ import annotations
-
 import argparse
 import asyncio
 import sys
-
+import time
 from .enumerator import (
     DEFAULT_THREADS,
     DEFAULT_TIMEOUT,
@@ -13,23 +11,14 @@ from .enumerator import (
     parse_status_codes,
 )
 from .formatter import format_result
-
-
-def show_banner() -> None:
-    print(
-        """
-==================== DurbX ====================
-      Directory Enumeration Tool
-==============================================
-""".strip("\n")
-    )
+from .utils import LOGO, setup_logging, console, print_help
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="durbx",
         description="DurbX - Directory Enumeration Tool",
-        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False
     )
     parser.add_argument("-u", "--url", required=True, help="Target URL")
     parser.add_argument("-w", "--wordlist", required=True, help="Wordlist file to use")
@@ -37,14 +26,37 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT, help=f"HTTP timeout in seconds (default: {DEFAULT_TIMEOUT})")
     parser.add_argument("--status", help="Show only these codes (e.g. 200,403)")
     parser.add_argument("--exclude", help="Exclude codes (e.g. 404,500)")
+    parser.add_argument("-a", "--all", action="store_true", help="Show all status codes (except 404)")
     parser.add_argument("--proxy", help="Proxy URL (e.g. http://127.0.0.1:8080)")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
+    parser.add_argument("-q", "--quiet", action="store_true", help="Minimal output mode")
+    parser.add_argument("-h", "--help", action="store_true", help="Show help")
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
-    args = parser.parse_args(argv)
-    show_banner()
+    
+    # Check for help early to skip required validation
+    if "-h" in sys.argv or "--help" in sys.argv:
+        print_help()
+        return 0
+
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit:
+        # If parse fails (missing args), but help wasn't requested, 
+        # let argparse handle the error message.
+        return 2
+    
+    log = setup_logging(args.verbose, args.quiet)
+
+    if not args.quiet:
+        console.print(LOGO)
+        console.print()
+        console.print(f"[dim]Target:[/dim] [bold white]{args.url}[/bold white] [dim]|[/dim] [dim]Threads:[/dim] [white]{args.threads}[/white] [dim]|[/dim] [dim]Wordlist:[/dim] [white]{args.wordlist}[/white]\n")
+
+    start_time = time.time()
 
     try:
         base_url = normalize_target(args.url)
@@ -52,20 +64,14 @@ def main(argv: list[str] | None = None) -> int:
         status_filter = parse_status_codes(args.status)
         exclude_filter = parse_status_codes(args.exclude)
     except (ValueError, FileNotFoundError) as exc:
-        parser.error(str(exc))
+        log.error(f"[bold red]✗[/bold red] {str(exc)}")
         return 2
 
     if not entries:
-        parser.error("No wordlist entries were loaded.")
+        log.error("[bold red]✗[/bold red] No wordlist entries were loaded.")
         return 2
 
-    print(f"[+] URL        : {base_url}")
-    print(f"[+] Wordlist   : {args.wordlist}")
-    print(f"[+] Threads    : {max(args.threads, 1)}")
-    print(f"[+] Total      : {len(entries)}")
-    if args.proxy:
-        print(f"[+] Proxy      : {args.proxy}")
-    print("=" * 60)
+    log.info(f"[bold blue]i[/bold blue] Starting discovery for [white]{len(entries)}[/white] paths...")
 
     try:
         summary = asyncio.run(
@@ -76,23 +82,20 @@ def main(argv: list[str] | None = None) -> int:
                 threads=max(args.threads, 1),
                 status_filter=status_filter,
                 exclude_filter=exclude_filter,
+                all_codes=args.all,
                 proxy=args.proxy,
-                on_result=lambda result: print(format_result(result)),
+                on_result=lambda result: console.print(format_result(result)),
             )
         )
     except KeyboardInterrupt:
-        print()
-        print("=" * 60)
-        print("Scan interrupted by user")
-        print("=" * 60)
+        console.print(f"\n[bold red][!] Scan interrupted by user. Exiting...[/bold red]")
         return 130
 
-    print("=" * 60)
-    print(f"Hits: {summary.hits}")
-    print(f"Progress: {summary.completed} / {summary.total} (100.00%)")
-    print("=" * 60)
-    print("Finished")
-    print("=" * 60)
+    duration = time.time() - start_time
+    if not args.quiet:
+        console.print(f"\n[dim]Finished in {duration:.2f}s. Total hits: {summary.hits}[/dim]")
+        console.print(f"[dim]Progress: {summary.completed} / {summary.total} (100.00%)[/dim]")
+    
     return 0
 
 

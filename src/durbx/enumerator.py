@@ -100,7 +100,7 @@ def should_show_result(
         return False
     if exclude_filter and result.status_code in exclude_filter:
         return False
-    if not status_filter and not (200 <= result.status_code < 400):
+    if not status_filter and result.status_code != 200:
         return False
     return True
 
@@ -112,6 +112,7 @@ async def enumerate_directories(
     threads: int = DEFAULT_THREADS,
     status_filter: list[int] | None = None,
     exclude_filter: list[int] | None = None,
+    all_codes: bool = False,
     proxy: str | None = None,
     on_result: Callable[[ScanResult], None] | None = None,
 ) -> ScanSummary:
@@ -178,7 +179,7 @@ async def enumerate_directories(
 
         async with print_lock:
             completed += 1
-            if should_show_result(result, status_filter=status_filter, exclude_filter=exclude_filter):
+            if should_show_result(result, status_filter=status_filter, exclude_filter=exclude_filter, all_codes=all_codes):
                 hits += 1
                 hit = True
                 print("\r" + " " * 100 + "\r", end="")

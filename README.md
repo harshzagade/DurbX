@@ -1,136 +1,120 @@
 # DurbX
 
-`DurbX` is an Directory enumeration tool for web targets. It takes a target URL and a wordlist, tests paths concurrently, and prints live hits as they are found.
+<p align="center">
+  <img src="https://img.shields.io/badge/Version-0.1.0-blue.svg?style=flat-square">
+  <img src="https://img.shields.io/badge/License-MIT-green.svg?style=flat-square">
+  <img src="https://img.shields.io/badge/Python-3.10%2B-yellow.svg?style=flat-square">
+</p>
 
-## Features
+**DurbX** is an asynchronous directory discovery tool built for speed, precision, and a professional user experience. It utilizes an async request engine to identify hidden paths and sensitive files with minimal resource overhead.
 
-- Async `aiohttp` request engine
-- Live hit output during the scan
-- Default hit filtering for `2xx` and `3xx` responses
-- Status filtering with `--status`
-- Status exclusion with `--exclude`
-- Proxy support with `--proxy`
-- Colorized output and progress bar
-- Bounded worker pool for cleaner large scans and interrupts
+---
 
-## Installation
+## 📸 Terminal Preview
 
-### Local development
+```text
+    ____             __   _  __   DurbX v0.1.0
+   / __ \__  _______/ /_ | |/ /   Advanced Directory Discovery
+  / / / / / / / ___/ __ \|   /    by Harsh Zagade
+ / /_/ / /_/ / /  / /_/ /   |  
+/_____/\__,_/_/  /_.___/_/|_|  
 
+Target: https://example.com | Threads: 50 | Wordlist: common.txt
+
+14:25:45 INFO     i Starting discovery for 4613 paths...
+
+/index.html          200   1.2KB
+/admin               403   256B
+/config.php          200   0B
+[████████████████████] 100.0% (4613/4613) | ETA: 00:00
+
+Finished in 12.25s. Total hits: 3
+Progress: 4613 / 4613 (100.00%)
+```
+
+---
+
+## ✨ Key Features
+
+- 🚀 **Async Engine**: High-concurrency directory brute-forcing powered by `aiohttp`.
+- 🔍 **Smart Filtering**: Show only `200 OK` responses by default for high-signal results.
+- 🎨 **Modern UI**: Integrated side-by-side ASCII branding and status-based color coding.
+- 🛡️ **Resource Efficient**: Bounded worker pool prevents resource exhaustion even with large wordlists.
+- 🤖 **Automation Ready**: Use `-q` / `--quiet` to output only found paths for easy integration.
+
+---
+
+## 🚀 Installation
+
+### Option 1: Using pipx (Recommended)
+This installs DurbX in an isolated environment and makes the command available globally.
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/yourusername/DurbX.git
 cd DurbX
-python3 -m pip install -e .
+pipx install .
 ```
 
-### User install
-
+### Option 2: Using pip
 ```bash
-python3 -m pip install --user .
+pip install .
 ```
 
-After installation, run:
+---
 
+## 📖 Usage Guide
+
+### Basic Directory Scan
+Identify files and folders on a target website:
 ```bash
-durbx --help
+durbx -u https://example.com -w common.txt
 ```
 
-## Usage
-
+### Advanced Filtering
+By default, DurbX only shows `200 OK`. Use `-a` to see everything or specify codes:
 ```bash
-durbx -u https://example.com -w wordlist.txt
+# Show all hits (3xx, 4xx, 5xx) except 404
+durbx -u example.com -w words.txt -a
+
+# Only show specific status codes
+durbx -u example.com -w words.txt --status 200,301,403
 ```
 
-### Examples
-
+### Fast Brute-forcing
+Scale up the concurrency for large wordlists:
 ```bash
-# Basic scan
-durbx -u https://example.com -w /usr/share/wordlists/dirb/common.txt
-
-# Higher concurrency
-durbx -u https://example.com -w wordlist.txt -t 100
-
-# Show only selected codes
-durbx -u https://example.com -w wordlist.txt --status 200,301,302
-
-# Exclude selected codes
-durbx -u https://example.com -w wordlist.txt --exclude 301,302
-
-# Use a proxy
-durbx -u https://example.com -w wordlist.txt --proxy http://127.0.0.1:8080
+durbx -u example.com -w big.txt -t 100
 ```
 
-## Output Preview
+---
 
-```text
-==================== DurbX ====================
-      Directory Enumeration Tool
-==============================================
-[+] URL        : https://example.com
-[+] Wordlist   : /usr/share/wordlists/dirb/common.txt
-[+] Threads    : 50
-[+] Total      : 4613
-============================================================
-/admin               200   512B       -> https://example.com/admin
-/login               302   0B         -> https://example.com/login
-[██████████████░░░░░░] 72.4% (3341/4613) | ETA: 00:03
-============================================================
-Hits: 2
-Progress: 4613 / 4613 (100.00%)
-============================================================
-Finished
-============================================================
-```
+## 🛠️ Options & Flags
 
-## Demo
+| Category | Option | Description |
+| :--- | :--- | :--- |
+| **Core** | `-u, --url` | Target URL (defaults to https://) |
+| | `-w, --wordlist` | Path to wordlist file |
+| | `-t, --threads` | Number of concurrent workers (default: 50) |
+| **Filters** | `-a, --all` | Show all status codes [dim](except 404)[/dim] |
+| | `--status` | Show only specific codes [dim](default: 200)[/dim] |
+| | `--exclude` | Exclude specific codes (e.g. 404,500) |
+| | `--timeout` | Request timeout in seconds (default: 3.0) |
+| **Global** | `-v, --verbose` | Enable detailed query logging |
+| | `-q, --quiet` | Minimal output (paths only) |
+| | `-h, --help` | Show professional help menu |
 
-Command:
+---
 
-```bash
-durbx -u https://example.com -w /usr/share/wordlists/dirb/common.txt -t 50
-```
+## 📂 Project Structure
 
-Sample run:
+- `src/durbx/cli.py`: Command-line interface and parsing.
+- `src/durbx/enumerator.py`: Async request engine and discovery logic.
+- `src/durbx/utils.py`: UI utilities and professional branding.
+- `src/durbx/formatter.py`: Result colorization and formatting.
 
-```text
-==================== DurbX ====================
-      Directory Enumeration Tool
-==============================================
-[+] URL        : https://example.com
-[+] Wordlist   : /usr/share/wordlists/dirb/common.txt
-[+] Threads    : 50
-[+] Total      : 4613
-============================================================
-/admin               200   512B       -> https://example.com/admin
-/login               301   0B         -> https://example.com/login
-/api                 200   128B       -> https://example.com/api
-[███████████████████░] 99.2% (4575/4613) | ETA: 00:00
-============================================================
-Hits: 3
-Progress: 4613 / 4613 (100.00%)
-============================================================
-Finished
-============================================================
-```
+---
 
-Reusable demo text: [docs/demo.txt](/home/phishingrod/DurbX/docs/demo.txt)
+## 📜 License
 
-## Flags
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-- `-u`, `--url`: target URL
-- `-w`, `--wordlist`: wordlist file
-- `-t`, `--threads`: concurrency level, default `50`
-- `--timeout`: request timeout in seconds
-- `--status`: comma-separated allowlist of status codes
-- `--exclude`: comma-separated denylist of status codes
-- `--proxy`: HTTP proxy URL
-
-## Notes
-
-- If you pass only a domain, `DurbX` uses `https://` by default.
-- By default, live hits are limited to `2xx` and `3xx` responses.
-- Press `Ctrl-C` to stop a scan cleanly.
-
-## Disclaimer
-
-Use `DurbX` only on targets you own or are explicitly authorized to test.
+Developed with ❤️ by **Harsh Zagade**
