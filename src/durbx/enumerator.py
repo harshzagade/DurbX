@@ -91,6 +91,7 @@ def should_show_result(
     result: ScanResult,
     status_filter: list[int] | None = None,
     exclude_filter: list[int] | None = None,
+    all_codes: bool = False,
 ) -> bool:
     status_filter = status_filter or []
     exclude_filter = exclude_filter or []
@@ -100,6 +101,10 @@ def should_show_result(
         return False
     if exclude_filter and result.status_code in exclude_filter:
         return False
+    # If all_codes flag is set, show everything except 404
+    if all_codes:
+        return result.status_code != 404
+    # Otherwise, only show specified codes or default to 200
     if not status_filter and result.status_code != 200:
         return False
     return True
