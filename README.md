@@ -357,19 +357,19 @@ durbx -u example.com -w wordlist.txt --status 200,403
 
 ---
 
-## 🤝 Contributing
+##  Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
-## 📄 License
+##  License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 👨‍💻 Author
+##  Author
 
 **Harsh Zagade**
 - GitHub: [@harshzagade](https://github.com/harshzagade)
@@ -377,7 +377,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## 🙏 Acknowledgments
+##  Acknowledgments
 
 - Inspired by Gobuster, Dirbuster, and ffuf
 - Built with Python asyncio and aiohttp
@@ -385,10 +385,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## ⚖️ Disclaimer
+##   Disclaimer
 
 This tool is intended for authorized security testing only. Always obtain proper authorization before scanning web applications you do not own.
 
 ---
 
-**Built with ❤️ for the security community**
