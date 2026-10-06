@@ -6,41 +6,41 @@
   <img src="https://img.shields.io/badge/License-MIT-green.svg?style=flat-square">
 </p>
 
-**DurbX** is an asynchronous directory and file discovery tool built for speed, precision, and a professional user experience. It utilizes Python's `aiohttp` library for high-concurrency web reconnaissance with intelligent response filtering.
+**DurbX** is an asynchronous directory and file discovery tool for web targets. Give it a URL and a wordlist, and it concurrently requests each path, reporting the ones that respond — with status code, response size, and redirect target — while filtering out the noise (404s by default). It is built on `aiohttp` for high-concurrency scanning with a bounded worker pool, DNS caching, and a live progress bar.
 
 ---
 
-## ✨ Key Features
+## 📸 Screenshots
 
-- **🚀 Blazing Fast**
-  - Asynchronous architecture using `aiohttp`
-  - Process 4,600+ paths in under 15 seconds
-  - Bounded worker pool prevents resource exhaustion
-  - 50-100+ concurrent workers supported
+Real terminal captures from an actual run (local test server — no real target was scanned):
 
-- **🎯 Smart Filtering**
-  - Show only `200 OK` by default (high signal)
-  - Customizable status code allowlists/denylists
-  - Automatic 404 filtering
-  - Size-based response filtering
+**Help screen**
 
-- **🎨 Modern Interface**
-  - Real-time progress bar with ETA
-  - Color-coded status indicators
-  - Professional ASCII branding
-  - Verbose and quiet modes
+![DurbX help screen](assets/screenshots/01-help.png)
 
-- **🛡️ Robust & Reliable**
-  - Intelligent timeout handling
-  - Automatic retry logic
-  - Connection pooling
-  - DNS caching
+**Live scan**
+
+![DurbX live scan against a local test server](assets/screenshots/02-live-scan.png)
+
+---
+
+## ✨ Features
+
+- **Async engine** — built on `aiohttp` + `asyncio`; one worker per thread-slot with a bounded `TCPConnector` pool, so concurrency never exhausts resources
+- **Smart filtering** — shows only `200 OK` by default; `--all` shows everything except 404; `--status` allowlist and `--exclude` denylist for precise control
+- **Fast feedback** — real-time progress bar with ETA, color-coded results, per-request timeout (default 3s)
+- **Wordlist handling** — strips whitespace and leading slashes, drops duplicates, skips `#` comments and blank lines
+- **URL normalization** — `example.com` becomes `https://example.com` automatically
+- **Proxy support** — route traffic through an HTTP proxy (e.g. Burp Suite) with `--proxy`
+- **Output modes** — verbose logging (`-v`) for debugging, quiet mode (`-q`) that suppresses the banner and summary lines for cleaner piped output
+- **Graceful errors** — connection errors and timeouts are caught per-request; `Ctrl+C` exits cleanly
 
 ---
 
 ## 📦 Installation
 
-### Using pipx (Recommended)
+### Using pipx (recommended)
+
 ```bash
 git clone https://github.com/harshzagade/DurbX.git
 cd DurbX
@@ -48,328 +48,217 @@ pipx install .
 ```
 
 ### Using pip
+
 ```bash
-pip install --user .
+pip install .
 ```
+
+Requires Python 3.10+ and the dependencies in `requirements.txt` (`aiohttp`, `colorama`, `rich`).
 
 ---
 
 ## 🚀 Quick Start
 
-### Basic Directory Scan
 ```bash
+# Basic scan: show only 200 OK responses
 durbx -u https://example.com -w wordlist.txt
-```
 
-### High-Speed Scan
-```bash
+# High-concurrency scan
 durbx -u https://example.com -w wordlist.txt -t 100
-```
 
-### Show All Status Codes
-```bash
+# Show everything except 404
 durbx -u https://example.com -w wordlist.txt -a
+
+# Show only specific status codes
+durbx -u https://example.com -w wordlist.txt --status 200,301,403
+
+# Exclude noisy codes
+durbx -u https://example.com -w wordlist.txt --exclude 404,500,503
 ```
 
-### Filter Specific Codes
-```bash
-durbx -u https://example.com -w wordlist.txt --status 200,403
-```
+> ⚠️ Only scan targets you own or are authorized to test. See the [Disclaimer](#-disclaimer).
 
 ---
 
 ## 📖 Usage Examples
 
-### Scan with Proxy
+All flags below are verified against `durbx --help`.
+
 ```bash
+# Scan through a proxy (e.g. Burp Suite)
 durbx -u https://example.com -w wordlist.txt --proxy http://127.0.0.1:8080
-```
 
-### Custom Timeout
-```bash
+# Custom per-request timeout (seconds)
 durbx -u https://example.com -w wordlist.txt --timeout 5
-```
 
-### Quiet Mode (Clean Output)
-```bash
+# Quiet mode: banner and summary suppressed, results stream cleanly
 durbx -u https://example.com -w wordlist.txt -q
-```
 
-### Verbose Logging
-```bash
+# Verbose logging
 durbx -u https://example.com -w wordlist.txt -v
+
+# Scheme is optional; -t sets concurrency (default: 50)
+durbx -u example.com -w words.txt -t 20
 ```
 
-### Exclude Specific Codes
+### Integration
+
 ```bash
-durbx -u https://example.com -w wordlist.txt --exclude 404,500,503
-```
+# Pipe hits into httpx
+durbx -u example.com -w wordlist.txt -q | httpx -silent
 
----
-
-## 🎯 How It Works
-
-### 1. URL Normalization
-```
-Input: example.com
-↓
-Normalized: https://example.com
-```
-
-### 2. Wordlist Loading
-```
-Read wordlist file
-↓
-Strip whitespace and leading slashes
-↓
-Remove duplicates
-↓
-Skip comments (lines starting with #)
-```
-
-### 3. Concurrent Scanning
-```
-Create worker pool (50 threads default)
-↓
-For each path in wordlist:
-  ├─ Construct URL: https://example.com/path
-  ├─ Send async HTTP GET request
-  ├─ Capture status code, size, reason
-  └─ Apply filters (status code, size)
-↓
-Display results in real-time
-```
-
-### 4. Result Filtering
-```
-if status_filter specified:
-    show only matching codes
-elif --all flag:
-    show everything except 404
-else:
-    show only 200 OK (default)
+# Save results
+durbx -u example.com -w wordlist.txt -q > found.txt
 ```
 
 ---
 
 ## 📊 Sample Output
 
+Actual output from a scan against a local test server (`python3 -m http.server`):
+
 ```
     ____             __   _  __   DurbX v0.1.0
    / __ \__  _______/ /_ | |/ /   Advanced Directory Discovery
   / / / / / / / ___/ __ \|   /    by Harsh Zagade
- / /_/ / /_/ / /  / /_/ /   |  
-/_____/\__,_/_/  /_.___/_/|_|  
+ / /_/ / /_/ / /  / /_/ /   |
+/_____/\__,_/_/  /_.___/_/|_|
 
-Target: https://example.com | Threads: 50 | Wordlist: common.txt
+Target: http://localhost:8899 | Threads: 20 | Wordlist: words.txt
 
-14:25:45 INFO     i Starting discovery for 4613 paths...
+15:33:21 INFO     i Starting discovery for 9 paths...
 
-/admin               200   1.2KB
-/api                 200   0B
-/config              403   256B
-/backup              301   0B → /backup/
-[████████████████████] 100.0% (4613/4613) | ETA: 00:00
+/admin.html          200   32B        -> http://localhost:8899/admin.html
+/index.html          200   52B        -> http://localhost:8899/index.html
+[████████████████████] 100.0% (9/9) | ETA: 00:00
 
-Finished in 12.25s. Total hits: 4
-Progress: 4613 / 4613 (100.00%)
+Finished in 0.03s. Total hits: 2
+Progress: 9 / 9 (100.00%)
 ```
+
+Status colors: `200` green, `301`/`302` magenta, `403` yellow, `500+`/errors red, `404` hidden by default.
 
 ---
 
 ## 🔧 CLI Options
 
-```bash
-usage: durbx [options] -u <url> -w <wordlist>
+```
+USAGE
+  $ durbx [options] -u <url> -w <wordlist>
 
-core settings:
-  -u, --url URL        Target URL (e.g., https://example.com)
-  -w, --wordlist FILE  Path to wordlist file
-  -t, --threads NUM    Number of concurrent threads (default: 50)
+CORE SETTINGS
+  -u, --url               Target URL (e.g. https://example.com)
+  -w, --wordlist          Path to wordlist file
+  -t, --threads           Concurrent threads (default: 50)
 
-filters:
-  -a, --all           Show all status codes (except 404)
-  --status CODES      Show only these codes (default: 200)
-                      Example: --status 200,301,403
-  --exclude CODES     Exclude these codes
-                      Example: --exclude 404,500
-  --timeout SECONDS   Request timeout in seconds (default: 3.0)
+FILTERS
+  -a, --all               Show all status codes (except 404)
+  --status                Show only these codes (default: 200)
+  --exclude               Exclude these codes (e.g. 404,500)
+  --timeout               Request timeout in seconds (default: 3.0)
 
-networking:
-  --proxy URL         HTTP proxy URL
-                      Example: --proxy http://127.0.0.1:8080
+OUTPUT & LOGGING
+  --proxy                 HTTP proxy URL
+  -v, --verbose           Enable detailed logging
+  -q, --quiet             Minimal output mode
+  -h, --help              Show this help message
 
-output:
-  -v, --verbose       Enable detailed logging
-  -q, --quiet         Minimal output mode (paths only)
-  -h, --help          Show this help message
+EXAMPLES
+  $ durbx -u https://example.com -w common.txt
+  $ durbx -u example.com -w words.txt --status 200,301
+  $ durbx -u example.com -w words.txt -t 100 -q
 ```
 
 ---
 
-## 🏗️ Architecture
+## 🎯 How It Works
+
+1. **URL normalization** — `example.com` → `https://example.com`
+2. **Wordlist loading** — strip whitespace/leading slashes, drop duplicates, skip `#` comments
+3. **Concurrent scan** — a bounded `aiohttp` worker pool (size = `-t`, default 50) GETs each path and records status code, reason, and body size
+4. **Result filtering** — `--status` allowlist wins; else `--all` shows everything except 404; else only `200` is shown; `--exclude` removes codes from any view
+5. **Live display** — results print as they arrive; a progress bar tracks completion with ETA; a summary (`Finished in Xs. Total hits: N`) closes the run
+
+---
+
+## 🏗️ Project Layout
 
 ```
-durbx/
-├── cli.py           # Command-line interface and argument parsing
-├── enumerator.py    # Async HTTP engine and scanning logic
+src/durbx/
+├── cli.py           # Argument parsing and main entry point
+├── enumerator.py    # Async HTTP engine, wordlist loading, filtering
 ├── formatter.py     # Result colorization and formatting
-└── utils.py         # UI utilities and branding
-```
-
----
-
-## ⚡ Performance Comparison
-
-| Tool | 4,600 Paths | Method | Speed |
-|------|-------------|--------|-------|
-| **DurbX** | 12.25s | Async (aiohttp) | ⚡⚡⚡⚡⚡ |
-| Gobuster | 18.5s | Go concurrency | ⚡⚡⚡⚡ |
-| Dirbuster | 45.2s | Java threads | ⚡⚡ |
-| ffuf | 14.1s | Go concurrency | ⚡⚡⚡⚡ |
-
-*Benchmark on localhost with 50 concurrent workers*
-
----
-
-## 🎨 Status Code Colors
-
-```
-200 OK          → Green
-301/302         → Yellow (Redirects)
-403 Forbidden   → Red
-404 Not Found   → Hidden (filtered by default)
-500+ Errors     → Red
+└── utils.py         # ASCII branding, logging setup, help text
+tests/
+└── test_core.py     # Unit tests (URL normalization, wordlist parsing,
+                     # filtering, result formatting, CLI flags)
 ```
 
 ---
 
 ## 🧪 Testing
 
-See [TESTING_NOTES.md](./TESTING_NOTES.md) for testing instructions and bug fix documentation.
-
-### Quick Test
 ```bash
-# Start test server
-echo '<html><body><h1>Test</h1></body></html>' > /tmp/test.html
-python3 -m http.server 8888 -d /tmp &
-
-# Create wordlist
-echo "test.html
-index.html
-admin" > /tmp/wordlist.txt
-
-# Run DurbX
-durbx -u http://localhost:8888 -w /tmp/wordlist.txt
+pip install -e .
+pip install pytest
+python -m pytest tests/ -q
 ```
 
-**Expected:** Finds `/test.html` with 200 status in <1 second
+The suite (8 tests, all passing) covers URL normalization, wordlist dedup/comment handling, status-code parsing, result filtering, result formatting, and CLI flag parsing. There are no network-dependent tests — scanning is exercised manually:
+
+```bash
+# Local end-to-end check (no external target needed)
+mkdir -p /tmp/durbx-test && echo hi > /tmp/durbx-test/index.html
+python3 -m http.server 8899 -d /tmp/durbx-test &
+printf 'index.html\nadmin\nlogin\n' > /tmp/words.txt
+durbx -u http://localhost:8899 -w /tmp/words.txt -t 20
+# Expected: finds /index.html (200), finishes in well under a second
+```
+
+See [TESTING_NOTES.md](./TESTING_NOTES.md) for the documented `--all`-flag bug fix and manual test notes.
 
 ---
 
-## 🐛 Bug Fixes
+## 📝 Changelog
 
-### v0.1.0 - Critical Fix
-**Issue:** `--all` flag caused scanning to hang due to missing parameter in `should_show_result()` function.
-
-**Fix Applied:**
-```python
-# Before (broken)
-def should_show_result(result, status_filter, exclude_filter):
-    # Missing all_codes parameter
-
-# After (working)
-def should_show_result(result, status_filter, exclude_filter, all_codes=False):
-    if all_codes:
-        return result.status_code != 404
-    # ... rest of logic
-```
-
-**Status:** ✅ Fixed and tested
+See [CHANGELOG.md](./CHANGELOG.md) for release history.
 
 ---
 
 ## 📚 Wordlist Recommendations
 
-### Small (Fast)
-- SecLists: `Discovery/Web-Content/common.txt` (4,613 entries)
-- Great for quick scans
+- **Small / fast:** SecLists `Discovery/Web-Content/common.txt` (~4.6k entries) — good for quick passes
+- **Medium / balanced:** SecLists `Discovery/Web-Content/directory-list-2.3-medium.txt` (~220k entries)
+- **Large / thorough:** SecLists `Discovery/Web-Content/directory-list-2.3-big.txt` (~1.2M entries)
 
-### Medium (Balanced)
-- SecLists: `Discovery/Web-Content/directory-list-2.3-medium.txt` (220k entries)
-- Good coverage without being too large
-
-### Large (Comprehensive)
-- SecLists: `Discovery/Web-Content/directory-list-2.3-big.txt` (1.2M entries)
-- Thorough but slower
-
-**Download SecLists:**
 ```bash
 git clone https://github.com/danielmiessler/SecLists.git
 ```
 
 ---
 
-## 🔄 Integration Examples
-
-### Pipe to HTTPx
-```bash
-durbx -u example.com -w wordlist.txt -q | httpx -silent
-```
-
-### Save Results
-```bash
-durbx -u example.com -w wordlist.txt -q > found.txt
-```
-
-### Use with Burp Suite Proxy
-```bash
-durbx -u example.com -w wordlist.txt --proxy http://127.0.0.1:8080
-```
-
----
-
 ## 🛡️ Best Practices
 
-### 1. Start Small
-```bash
-# Test with small wordlist first
-durbx -u example.com -w small.txt -t 10
-```
-
-### 2. Respect Rate Limits
-```bash
-# Use lower thread count for sensitive targets
-durbx -u example.com -w wordlist.txt -t 5
-```
-
-### 3. Use Appropriate Timeout
-```bash
-# Increase timeout for slow servers
-durbx -u example.com -w wordlist.txt --timeout 10
-```
-
-### 4. Filter Wisely
-```bash
-# Focus on specific status codes
-durbx -u example.com -w wordlist.txt --status 200,403
-```
+1. **Start small** — validate with a short wordlist and low thread count first (`-t 10`)
+2. **Respect rate limits** — drop `-t` on sensitive or slow targets
+3. **Tune the timeout** — raise `--timeout` for slow servers instead of re-running
+4. **Filter deliberately** — `--status 200,403` focuses the signal; `-a` when you want the full picture
 
 ---
 
-##  Contributing
+## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
-##  License
+## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
 
 ---
 
-##  Author
+## 👤 Author
 
 **Harsh Zagade**
 - GitHub: [@harshzagade](https://github.com/harshzagade)
@@ -377,17 +266,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-##  Acknowledgments
+## 🙏 Acknowledgments
 
-- Inspired by Gobuster, Dirbuster, and ffuf
-- Built with Python asyncio and aiohttp
+- Inspired by Gobuster, ffuf, and Dirbuster
+- Built with Python `asyncio` and `aiohttp`
 - Thanks to the SecLists project for wordlists
 
 ---
 
-##   Disclaimer
+## ⚠️ Disclaimer
 
 This tool is intended for authorized security testing only. Always obtain proper authorization before scanning web applications you do not own.
-
----
-
