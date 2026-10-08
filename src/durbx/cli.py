@@ -3,6 +3,7 @@ import asyncio
 import sys
 import time
 from .enumerator import (
+    DEFAULT_MAX_RETRIES,
     DEFAULT_THREADS,
     DEFAULT_TIMEOUT,
     enumerate_directories,
@@ -24,6 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-w", "--wordlist", required=True, help="Wordlist file to use")
     parser.add_argument("-t", "--threads", type=int, default=DEFAULT_THREADS, help=f"Threads (default: {DEFAULT_THREADS})")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT, help=f"HTTP timeout in seconds (default: {DEFAULT_TIMEOUT})")
+    parser.add_argument("--retries", type=int, default=DEFAULT_MAX_RETRIES, help=f"Retries on HTTP 429 with backoff (default: {DEFAULT_MAX_RETRIES}; 0 disables)")
     parser.add_argument("--status", help="Show only these codes (e.g. 200,403)")
     parser.add_argument("--exclude", help="Exclude codes (e.g. 404,500)")
     parser.add_argument("-a", "--all", action="store_true", help="Show all status codes (except 404)")
@@ -84,6 +86,7 @@ def main(argv: list[str] | None = None) -> int:
                 exclude_filter=exclude_filter,
                 all_codes=args.all,
                 proxy=args.proxy,
+                max_retries=max(0, args.retries),
                 on_result=lambda result: console.print(format_result(result)),
             )
         )

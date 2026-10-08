@@ -34,6 +34,7 @@ Real terminal captures from an actual run (local test server — no real target 
 - **Proxy support** — route traffic through an HTTP proxy (e.g. Burp Suite) with `--proxy`
 - **Output modes** — verbose logging (`-v`) for debugging, quiet mode (`-q`) that suppresses the banner and summary lines for cleaner piped output
 - **Graceful errors** — connection errors and timeouts are caught per-request; `Ctrl+C` exits cleanly
+- **Rate-limit handling** — backs off and retries HTTP 429 responses (exponential backoff, honors the server's `Retry-After` header); tune with `--retries`
 
 ---
 
@@ -90,6 +91,9 @@ durbx -u https://example.com -w wordlist.txt --proxy http://127.0.0.1:8080
 
 # Custom per-request timeout (seconds)
 durbx -u https://example.com -w wordlist.txt --timeout 5
+
+# Control 429 retry behavior (default: 3 retries with backoff; 0 disables)
+durbx -u https://example.com -w wordlist.txt --retries 5
 
 # Quiet mode: banner and summary suppressed, results stream cleanly
 durbx -u https://example.com -w wordlist.txt -q
@@ -156,6 +160,7 @@ FILTERS
   --status                Show only these codes (default: 200)
   --exclude               Exclude these codes (e.g. 404,500)
   --timeout               Request timeout in seconds (default: 3.0)
+  --retries               Retry 429s with backoff (default: 3; 0 disables)
 
 OUTPUT & LOGGING
   --proxy                 HTTP proxy URL

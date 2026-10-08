@@ -13,6 +13,9 @@ import aiohttp
 
 DEFAULT_TIMEOUT = 3.0
 DEFAULT_THREADS = 50
+DEFAULT_MAX_RETRIES = 3
+RETRY_BACKOFF_BASE = 1.0
+MAX_RETRY_AFTER_SECONDS = 60.0
 
 
 @dataclass(frozen=True)
@@ -29,6 +32,14 @@ class ScanSummary:
     total: int
     completed: int
     hits: int
+
+
+@dataclass(frozen=True)
+class FetchOutcome:
+    status: int
+    reason: str
+    content_length: int
+    attempts: int
 
 
 def normalize_target(target: str) -> str:
@@ -87,6 +98,71 @@ def parse_status_codes(raw_value: str | None) -> list[int]:
     return codes
 
 
+def parse_retry_after(raw_value: str | None) -> float | None:
+    """Parse a ``Retry-After`` header value into seconds.
+
+    Only the delta-seconds form is honored; the HTTP-date form is ignored.
+    The result is clamped to ``MAX_RETRY_AFTER_SECONDS`` so a hostile or
+    misconfigured server cannot stall the scan. Returns ``None`` when the
+    header is absent, empty, negative, or unparseable.
+    """
+    if raw_value is None:
+        return None
+    value_text = raw_value.strip()
+    if not value_text:
+        return None
+    try:
+        seconds = float(value_text)
+    except ValueError:
+        return None
+    if seconds < 0:
+        return None
+    return min(seconds, MAX_RETRY_AFTER_SECONDS)
+
+
+def retry_delay(attempt: int, retry_after: float | None = None) -> float:
+    """Seconds to wait before retry number ``attempt`` (0-based).
+
+    Defaults to exponential backoff (1s, 2s, 4s, ...); a parsed
+    ``Retry-After`` value overrides the computed delay.
+    """
+    if retry_after is not None:
+        return retry_after
+    return RETRY_BACKOFF_BASE * (2 ** max(0, attempt))
+
+
+async def fetch_with_retry(
+    session,
+    url: str,
+    *,
+    max_retries: int,
+    proxy: str | None = None,
+) -> FetchOutcome:
+    """GET ``url``, backing off and retrying on HTTP 429.
+
+    Retries up to ``max_retries`` times after the first attempt (0 disables
+    retrying). Waits out the server's ``Retry-After`` header when present,
+    otherwise uses exponential backoff. Non-429 responses are returned
+    immediately. ``aiohttp`` client errors and timeouts propagate to the
+    caller.
+    """
+    retries = max(0, max_retries)
+    attempt = 0
+    while True:
+        async with session.get(url, allow_redirects=False, proxy=proxy) as response:
+            status = response.status
+            if status != 429 or attempt >= retries:
+                return FetchOutcome(
+                    status=status,
+                    reason=response.reason or "OK",
+                    content_length=int(response.headers.get("Content-Length", "0") or 0),
+                    attempts=attempt + 1,
+                )
+            delay = retry_delay(attempt, parse_retry_after(response.headers.get("Retry-After")))
+            await asyncio.sleep(delay)
+            attempt += 1
+
+
 def should_show_result(
     result: ScanResult,
     status_filter: list[int] | None = None,
@@ -119,6 +195,7 @@ async def enumerate_directories(
     exclude_filter: list[int] | None = None,
     all_codes: bool = False,
     proxy: str | None = None,
+    max_retries: int = DEFAULT_MAX_RETRIES,
     on_result: Callable[[ScanResult], None] | None = None,
 ) -> ScanSummary:
     status_filter = status_filter or []
@@ -153,33 +230,30 @@ async def enumerate_directories(
         encoded_entry = quote(entry, safe="/")
         target_url = f"{base_url}/{encoded_entry}"
         try:
-            async with session.get(
+            outcome = await fetch_with_retry(
+                session,
                 target_url,
-                allow_redirects=False,
+                max_retries=max_retries,
                 proxy=proxy,
-            ) as response:
-                result = ScanResult(
-                    path=f"/{entry}",
-                    status_code=response.status,
-                    url=target_url,
-                    reason=response.reason or "OK",
-                    size=int(response.headers.get("Content-Length", "0") or 0),
-                )
-        except aiohttp.ClientError as exc:
+            )
+        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            detail = str(exc).strip()
+            if not detail:
+                detail = "Request timed out" if isinstance(exc, asyncio.TimeoutError) else "Request failed"
             result = ScanResult(
                 path=f"/{entry}",
                 status_code=None,
                 url=target_url,
-                reason=str(exc),
+                reason=detail,
                 size=0,
             )
-        except asyncio.TimeoutError:
+        else:
             result = ScanResult(
                 path=f"/{entry}",
-                status_code=None,
+                status_code=outcome.status,
                 url=target_url,
-                reason="Request timed out",
-                size=0,
+                reason=outcome.reason,
+                size=outcome.content_length,
             )
 
         async with print_lock:

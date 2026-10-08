@@ -6,6 +6,13 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Backoff + retry on HTTP 429 responses: new `--retries` flag (default 3;
+  `0` disables). Requests that hit rate limiting are retried with
+  exponential backoff (1s, 2s, 4s, ...) unless the server's `Retry-After`
+  header names a delay (clamped to 60s, HTTP-date form ignored).
+  `FetchOutcome` / `fetch_with_retry()` in `enumerator.py`, plus 11 new
+  unit tests (backoff, Retry-After parsing, retry-then-succeed, give-up
+  after max retries, zero-retries disabled, error propagation).
 - `assets/screenshots/`: real terminal captures — `01-help.png` (help screen)
   and `02-live-scan.png` (scan against a local `http.server` test instance).
   Both were recorded from actual runs, not mockups.
