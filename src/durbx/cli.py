@@ -87,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
                 all_codes=args.all,
                 proxy=args.proxy,
                 max_retries=max(0, args.retries),
-                on_result=lambda result: console.print(format_result(result)),
+                on_result=lambda result: console.print(format_result(result), highlight=False),
             )
         )
     except KeyboardInterrupt:

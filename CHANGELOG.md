@@ -5,6 +5,13 @@ All notable changes to DurbX are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- TTY color bug: on color terminals, scan result lines rendered mangled
+  output like literal `ESC[1m[ESC[0m32m` because rich's `ReprHighlighter`
+  was splitting colorama's ANSI escapes when highlighting numbers inside
+  them. The result-line `console.print()` in `cli.py` now passes
+  `highlight=False`; output renders as clean colorama colors again.
+
 ### Added
 - Backoff + retry on HTTP 429 responses: new `--retries` flag (default 3;
   `0` disables). Requests that hit rate limiting are retried with
