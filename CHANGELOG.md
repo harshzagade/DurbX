@@ -13,6 +13,12 @@ All notable changes to DurbX are documented here. The format follows
   `highlight=False`; output renders as clean colorama colors again.
 
 ### Added
+- `-x/--extensions` flag: probe file extensions for every wordlist entry
+  (e.g. `-x php,html` requests `/admin`, `/admin.php`, `/admin.html`).
+  Bare entries come first, directory guesses (`trailing/`) get no extension
+  variants, duplicates are dropped, and malformed tokens (empty, containing
+  `/` or whitespace) fail fast. `parse_extensions()` / `expand_extensions()`
+  in `enumerator.py`, plus 7 new unit tests.
 - Backoff + retry on HTTP 429 responses: new `--retries` flag (default 3;
   `0` disables). Requests that hit rate limiting are retried with
   exponential backoff (1s, 2s, 4s, ...) unless the server's `Retry-After`

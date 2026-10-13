@@ -52,6 +52,7 @@ def print_help():
         "CORE SETTINGS": [
             ("-u, --url", "Target URL [dim](e.g. https://example.com)[/dim]"),
             ("-w, --wordlist", "Path to wordlist file"),
+            ("-x, --extensions", "Append extensions to each word [dim](e.g. php,html)[/dim]"),
             ("-t, --threads", "Concurrent threads [dim](default: 50)[/dim]"),
         ],
         "FILTERS": [

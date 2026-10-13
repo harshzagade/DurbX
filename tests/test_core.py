@@ -202,3 +202,61 @@ def test_cli_retries_flag_default_and_override() -> None:
     assert args.retries == enumerator_mod.DEFAULT_MAX_RETRIES
     args = parser.parse_args(["-u", "example.com", "-w", "custom.txt", "--retries", "0"])
     assert args.retries == 0
+
+
+def test_parse_extensions_normalizes_leading_dot() -> None:
+    from durbx.enumerator import parse_extensions
+
+    assert parse_extensions("php,html") == [".php", ".html"]
+    assert parse_extensions(".php, .html") == [".php", ".html"]
+    assert parse_extensions("php,PHP,.php") == [".php", ".PHP"]
+
+
+def test_parse_extensions_empty_input() -> None:
+    from durbx.enumerator import parse_extensions
+
+    assert parse_extensions(None) == []
+    assert parse_extensions("") == []
+
+
+def test_parse_extensions_rejects_bad_tokens() -> None:
+    from durbx.enumerator import parse_extensions
+
+    with pytest.raises(ValueError):
+        parse_extensions("php,,html")
+    with pytest.raises(ValueError):
+        parse_extensions("ph/p")
+    with pytest.raises(ValueError):
+        parse_extensions("my ext")
+
+
+def test_expand_extensions_keeps_bare_entries_first() -> None:
+    from durbx.enumerator import expand_extensions
+
+    assert expand_extensions(["admin", "login"], [".php"]) == [
+        "admin",
+        "admin.php",
+        "login",
+        "login.php",
+    ]
+
+
+def test_expand_extensions_skips_directories() -> None:
+    from durbx.enumerator import expand_extensions
+
+    assert expand_extensions(["assets/"], [".php", ".html"]) == ["assets/"]
+
+
+def test_expand_extensions_dedupes() -> None:
+    from durbx.enumerator import expand_extensions
+
+    assert expand_extensions(["a", "a"], [".php"]) == ["a", "a.php"]
+    assert expand_extensions(["a"], []) == ["a"]
+
+
+def test_cli_extensions_flag_default_and_override() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["-u", "example.com", "-w", "custom.txt"])
+    assert args.extensions is None
+    args = parser.parse_args(["-u", "example.com", "-w", "custom.txt", "-x", "php,html"])
+    assert args.extensions == "php,html"

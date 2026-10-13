@@ -98,6 +98,50 @@ def parse_status_codes(raw_value: str | None) -> list[int]:
     return codes
 
 
+def parse_extensions(raw_value: str | None) -> list[str]:
+    """Parse a comma-separated extension list into ``['.ext', ...]``.
+
+    Accepts tokens with or without a leading dot (``php`` or ``.php``).
+    Raises ``ValueError`` for empty tokens or tokens containing ``/`` or
+    whitespace, which would produce nonsense request paths.
+    """
+    if not raw_value:
+        return []
+    extensions: list[str] = []
+    for chunk in raw_value.split(","):
+        token = chunk.strip()
+        if not token:
+            raise ValueError("Invalid file extension: empty token")
+        token = "." + token.lstrip(".")
+        if "/" in token or any(char.isspace() for char in token):
+            raise ValueError(f"Invalid file extension: {chunk.strip()!r}")
+        if token not in extensions:
+            extensions.append(token)
+    return extensions
+
+
+def expand_extensions(entries: list[str], extensions: list[str]) -> list[str]:
+    """Expand a wordlist with per-extension variants, gobuster-style.
+
+    For each entry, keeps the bare entry first, then one ``entry + ext``
+    variant per extension. Entries ending in ``/`` (directory guesses) are
+    not given extension variants. Duplicates are dropped, order preserved.
+    """
+    if not extensions:
+        return list(entries)
+    expanded: list[str] = []
+    seen: set[str] = set()
+    for entry in entries:
+        variants = [entry]
+        if not entry.endswith("/"):
+            variants.extend(entry + ext for ext in extensions)
+        for variant in variants:
+            if variant not in seen:
+                seen.add(variant)
+                expanded.append(variant)
+    return expanded
+
+
 def parse_retry_after(raw_value: str | None) -> float | None:
     """Parse a ``Retry-After`` header value into seconds.
 
@@ -196,10 +240,12 @@ async def enumerate_directories(
     all_codes: bool = False,
     proxy: str | None = None,
     max_retries: int = DEFAULT_MAX_RETRIES,
+    extensions: list[str] | None = None,
     on_result: Callable[[ScanResult], None] | None = None,
 ) -> ScanSummary:
     status_filter = status_filter or []
     exclude_filter = exclude_filter or []
+    entries = expand_extensions(entries, extensions or [])
     total = len(entries)
     completed = 0
     hits = 0

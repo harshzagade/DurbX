@@ -9,6 +9,7 @@ from .enumerator import (
     enumerate_directories,
     load_wordlist,
     normalize_target,
+    parse_extensions,
     parse_status_codes,
 )
 from .formatter import format_result
@@ -23,6 +24,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("-u", "--url", required=True, help="Target URL")
     parser.add_argument("-w", "--wordlist", required=True, help="Wordlist file to use")
+    parser.add_argument("-x", "--extensions", help="Append file extensions to each word (e.g. php,html)")
     parser.add_argument("-t", "--threads", type=int, default=DEFAULT_THREADS, help=f"Threads (default: {DEFAULT_THREADS})")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT, help=f"HTTP timeout in seconds (default: {DEFAULT_TIMEOUT})")
     parser.add_argument("--retries", type=int, default=DEFAULT_MAX_RETRIES, help=f"Retries on HTTP 429 with backoff (default: {DEFAULT_MAX_RETRIES}; 0 disables)")
@@ -65,6 +67,7 @@ def main(argv: list[str] | None = None) -> int:
         entries = load_wordlist(args.wordlist)
         status_filter = parse_status_codes(args.status)
         exclude_filter = parse_status_codes(args.exclude)
+        extensions = parse_extensions(args.extensions)
     except (ValueError, FileNotFoundError) as exc:
         log.error(f"[bold red]✗[/bold red] {str(exc)}")
         return 2
@@ -87,6 +90,7 @@ def main(argv: list[str] | None = None) -> int:
                 all_codes=args.all,
                 proxy=args.proxy,
                 max_retries=max(0, args.retries),
+                extensions=extensions,
                 on_result=lambda result: console.print(format_result(result), highlight=False),
             )
         )

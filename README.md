@@ -30,6 +30,7 @@ Real terminal captures from an actual run (local test server — no real target 
 - **Smart filtering** — shows only `200 OK` by default; `--all` shows everything except 404; `--status` allowlist and `--exclude` denylist for precise control
 - **Fast feedback** — real-time progress bar with ETA, color-coded results, per-request timeout (default 3s)
 - **Wordlist handling** — strips whitespace and leading slashes, drops duplicates, skips `#` comments and blank lines
+- **Extension probing** — `-x php,html` requests each word plus its extension variants (e.g. `/admin`, `/admin.php`, `/admin.html`)
 - **URL normalization** — `example.com` becomes `https://example.com` automatically
 - **Proxy support** — route traffic through an HTTP proxy (e.g. Burp Suite) with `--proxy`
 - **Output modes** — verbose logging (`-v`) for debugging, quiet mode (`-q`) that suppresses the banner and summary lines for cleaner piped output
@@ -103,6 +104,9 @@ durbx -u https://example.com -w wordlist.txt -v
 
 # Scheme is optional; -t sets concurrency (default: 50)
 durbx -u example.com -w words.txt -t 20
+
+# Probe file extensions for every word (word, word.php, word.html, ...)
+durbx -u example.com -w words.txt -x php,html
 ```
 
 ### Integration
@@ -153,6 +157,7 @@ USAGE
 CORE SETTINGS
   -u, --url               Target URL (e.g. https://example.com)
   -w, --wordlist          Path to wordlist file
+  -x, --extensions        Append extensions to each word (e.g. php,html)
   -t, --threads           Concurrent threads (default: 50)
 
 FILTERS
