@@ -13,6 +13,10 @@ All notable changes to DurbX are documented here. The format follows
   `highlight=False`; output renders as clean colorama colors again.
 
 ### Added
+- `-o/--output FILE`: save discovered hits to a file as plain uncolored lines
+  (path, code, size, redirect target). Write errors exit 2 instead of
+  crashing mid-run. `plain_result_line()` / `render_plain_results()` in
+  `formatter.py`, 5 new unit tests.
 - `-x/--extensions` flag: probe file extensions for every wordlist entry
   (e.g. `-x php,html` requests `/admin`, `/admin.php`, `/admin.html`).
   Bare entries come first, directory guesses (`trailing/`) get no extension

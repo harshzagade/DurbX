@@ -64,6 +64,7 @@ def print_help():
         ],
         "OUTPUT & LOGGING": [
             ("--proxy", "HTTP proxy URL"),
+            ("-o, --output", "Save hits to a file"),
             ("-v, --verbose", "Enable detailed logging"),
             ("-q, --quiet", "Minimal output mode"),
             ("-h, --help", "Show this help message"),

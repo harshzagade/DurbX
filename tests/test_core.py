@@ -260,3 +260,45 @@ def test_cli_extensions_flag_default_and_override() -> None:
     assert args.extensions is None
     args = parser.parse_args(["-u", "example.com", "-w", "custom.txt", "-x", "php,html"])
     assert args.extensions == "php,html"
+
+
+def test_plain_result_line_200_shows_url() -> None:
+    from durbx.formatter import plain_result_line
+
+    line = plain_result_line(ScanResult(path="/admin", status_code=200, url="https://example.com/admin", reason="OK", size=99))
+    assert "-> https://example.com/admin" in line
+    assert "\x1b" not in line  # no ANSI escapes
+
+
+def test_plain_result_line_non_redirectable_omits_url() -> None:
+    from durbx.formatter import plain_result_line
+
+    line = plain_result_line(ScanResult(path="/secret", status_code=403, url="https://example.com/secret", reason="Forbidden", size=7))
+    assert "->" not in line
+    assert "7B" in line
+
+
+def test_plain_result_line_none_status_dashes() -> None:
+    from durbx.formatter import plain_result_line
+
+    line = plain_result_line(ScanResult(path="/x", status_code=None, url="https://example.com/x", reason="timed out", size=0))
+    assert " - " in line or line.split()[1] == "-"
+
+
+def test_render_plain_results_joins_lines() -> None:
+    from durbx.formatter import render_plain_results
+
+    text = render_plain_results([
+        ScanResult(path="/a", status_code=200, url="https://example.com/a", reason="OK", size=1),
+        ScanResult(path="/b", status_code=403, url="https://example.com/b", reason="Forbidden", size=2),
+    ])
+    assert len(text.splitlines()) == 2
+    assert "\x1b" not in text
+
+
+def test_cli_output_flag_default_and_override() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["-u", "example.com", "-w", "custom.txt"])
+    assert args.output is None
+    args = parser.parse_args(["-u", "example.com", "-w", "custom.txt", "-o", "hits.txt"])
+    assert args.output == "hits.txt"

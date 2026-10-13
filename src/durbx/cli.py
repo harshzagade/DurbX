@@ -12,7 +12,7 @@ from .enumerator import (
     parse_extensions,
     parse_status_codes,
 )
-from .formatter import format_result
+from .formatter import format_result, render_plain_results
 from .utils import LOGO, setup_logging, console, print_help
 
 
@@ -32,6 +32,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--exclude", help="Exclude codes (e.g. 404,500)")
     parser.add_argument("-a", "--all", action="store_true", help="Show all status codes (except 404)")
     parser.add_argument("--proxy", help="Proxy URL (e.g. http://127.0.0.1:8080)")
+    parser.add_argument("-o", "--output", help="Save discovered hits to a file")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
     parser.add_argument("-q", "--quiet", action="store_true", help="Minimal output mode")
     parser.add_argument("-h", "--help", action="store_true", help="Show help")
@@ -78,6 +79,12 @@ def main(argv: list[str] | None = None) -> int:
 
     log.info(f"[bold blue]i[/bold blue] Starting discovery for [white]{len(entries)}[/white] paths...")
 
+    hits: list = []
+
+    def record_hit(result) -> None:
+        hits.append(result)
+        console.print(format_result(result), highlight=False)
+
     try:
         summary = asyncio.run(
             enumerate_directories(
@@ -91,12 +98,24 @@ def main(argv: list[str] | None = None) -> int:
                 proxy=args.proxy,
                 max_retries=max(0, args.retries),
                 extensions=extensions,
-                on_result=lambda result: console.print(format_result(result), highlight=False),
+                on_result=record_hit,
             )
         )
     except KeyboardInterrupt:
         console.print(f"\n[bold red][!] Scan interrupted by user. Exiting...[/bold red]")
         return 130
+
+    if args.output:
+        try:
+            with open(args.output, "w", encoding="utf-8") as handle:
+                handle.write(render_plain_results(hits))
+                if hits:
+                    handle.write("\n")
+        except OSError as exc:
+            log.error(f"[bold red]✗[/bold red] Could not write output file: {exc}")
+            return 2
+        if not args.quiet:
+            console.print(f"[dim]Saved {len(hits)} hit(s) to {args.output}[/dim]")
 
     duration = time.time() - start_time
     if not args.quiet:

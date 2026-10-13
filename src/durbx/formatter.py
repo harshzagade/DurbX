@@ -33,6 +33,21 @@ def format_result(result: ScanResult) -> str:
     return color + f"{result.path:<20} {status:<5} {size:<10}" + Style.RESET_ALL
 
 
+def plain_result_line(result: ScanResult) -> str:
+    """Single-line hit without ANSI colors, for output files and piping."""
+    status = str(result.status_code) if result.status_code is not None else "-"
+    size = f"{result.size}B"
+    line = f"{result.path:<20} {status:<5} {size:<10}"
+    if result.status_code in {200, 301, 302}:
+        line += f" -> {result.url}"
+    return line
+
+
+def render_plain_results(results: list[ScanResult]) -> str:
+    """Plain (uncolored) multi-line rendering of a hit list."""
+    return "\n".join(plain_result_line(result) for result in results)
+
+
 def render_results(results: list[ScanResult], status_filter: list[int] | None = None, exclude_filter: list[int] | None = None) -> str:
     status_filter = status_filter or []
     exclude_filter = exclude_filter or []

@@ -33,7 +33,7 @@ Real terminal captures from an actual run (local test server — no real target 
 - **Extension probing** — `-x php,html` requests each word plus its extension variants (e.g. `/admin`, `/admin.php`, `/admin.html`)
 - **URL normalization** — `example.com` becomes `https://example.com` automatically
 - **Proxy support** — route traffic through an HTTP proxy (e.g. Burp Suite) with `--proxy`
-- **Output modes** — verbose logging (`-v`) for debugging, quiet mode (`-q`) that suppresses the banner and summary lines for cleaner piped output
+- **Output modes** — verbose logging (`-v`) for debugging, quiet mode (`-q`) that suppresses the banner and summary lines for cleaner piped output, `-o/--output` to save hits to a file
 - **Graceful errors** — connection errors and timeouts are caught per-request; `Ctrl+C` exits cleanly
 - **Rate-limit handling** — backs off and retries HTTP 429 responses (exponential backoff, honors the server's `Retry-After` header); tune with `--retries`
 
@@ -98,6 +98,9 @@ durbx -u https://example.com -w wordlist.txt --retries 5
 
 # Quiet mode: banner and summary suppressed, results stream cleanly
 durbx -u https://example.com -w wordlist.txt -q
+
+# Save discovered hits to a file (plain text, no color codes)
+durbx -u https://example.com -w wordlist.txt -o hits.txt
 
 # Verbose logging
 durbx -u https://example.com -w wordlist.txt -v
@@ -169,6 +172,7 @@ FILTERS
 
 OUTPUT & LOGGING
   --proxy                 HTTP proxy URL
+  -o, --output            Save hits to a file
   -v, --verbose           Enable detailed logging
   -q, --quiet             Minimal output mode
   -h, --help              Show this help message
