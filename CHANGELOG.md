@@ -17,6 +17,9 @@ All notable changes to DurbX are documented here. The format follows
   against rate-limited targets (default 0; negative values fail fast with
   exit 2). 4 new unit tests (CLI parsing, negative-value rejection,
   recorded inter-request sleeps, zero-delay no-op).
+- `--user-agent UA`: override the hard-coded `DurbX/0.1` User-Agent header
+  (empty values fail fast with exit 2). 4 new unit tests (CLI parsing,
+  empty-value rejection, default and custom header wiring).
 - `-o/--output FILE`: save discovered hits to a file as plain uncolored lines
   (path, code, size, redirect target). Write errors exit 2 instead of
   crashing mid-run. `plain_result_line()` / `render_plain_results()` in

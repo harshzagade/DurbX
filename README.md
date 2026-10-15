@@ -36,7 +36,7 @@ Real terminal captures from an actual run (local test server — no real target 
 - **Output modes** — verbose logging (`-v`) for debugging, quiet mode (`-q`) that suppresses the banner and summary lines for cleaner piped output, `-o/--output` to save hits to a file
 - **Graceful errors** — connection errors and timeouts are caught per-request; `Ctrl+C` exits cleanly
 - **Rate-limit handling** — backs off and retries HTTP 429 responses (exponential backoff, honors the server's `Retry-After` header); tune with `--retries`
-- **Stealth controls** — `--delay` pauses each worker between requests for slower, quieter scans on rate-limited targets
+- **Stealth controls** — `--delay` pauses each worker between requests for slower, quieter scans on rate-limited targets; `--user-agent` overrides the default `DurbX/0.1` User-Agent header
 
 ---
 
@@ -99,6 +99,9 @@ durbx -u https://example.com -w wordlist.txt --retries 5
 
 # Stealthy scan: 0.5s pause between requests per worker
 durbx -u https://example.com -w wordlist.txt --delay 0.5
+
+# Custom User-Agent (default: DurbX/0.1)
+durbx -u https://example.com -w wordlist.txt --user-agent "Mozilla/5.0"
 
 # Quiet mode: banner and summary suppressed, results stream cleanly
 durbx -u https://example.com -w wordlist.txt -q
@@ -167,6 +170,7 @@ CORE SETTINGS
   -x, --extensions        Append extensions to each word (e.g. php,html)
   -t, --threads           Concurrent threads (default: 50)
   --delay                 Pause between requests per worker (default: 0)
+  --user-agent            Custom User-Agent header (default: DurbX/0.1)
 
 FILTERS
   -a, --all               Show all status codes (except 404)

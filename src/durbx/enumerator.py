@@ -15,6 +15,7 @@ DEFAULT_TIMEOUT = 3.0
 DEFAULT_THREADS = 50
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_DELAY = 0.0
+DEFAULT_USER_AGENT = "DurbX/0.1"
 RETRY_BACKOFF_BASE = 1.0
 MAX_RETRY_AFTER_SECONDS = 60.0
 
@@ -244,6 +245,7 @@ async def enumerate_directories(
     extensions: list[str] | None = None,
     on_result: Callable[[ScanResult], None] | None = None,
     delay: float = DEFAULT_DELAY,
+    user_agent: str = DEFAULT_USER_AGENT,
 ) -> ScanSummary:
     status_filter = status_filter or []
     exclude_filter = exclude_filter or []
@@ -341,7 +343,7 @@ async def enumerate_directories(
     async with aiohttp.ClientSession(
         connector=connector,
         timeout=client_timeout,
-        headers={"User-Agent": "DurbX/0.1"},
+        headers={"User-Agent": user_agent},
     ) as session:
         worker_count = max(1, threads)
         for entry in entries:
