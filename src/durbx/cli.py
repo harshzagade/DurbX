@@ -3,6 +3,7 @@ import asyncio
 import sys
 import time
 from .enumerator import (
+    DEFAULT_DELAY,
     DEFAULT_MAX_RETRIES,
     DEFAULT_THREADS,
     DEFAULT_TIMEOUT,
@@ -28,6 +29,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-t", "--threads", type=int, default=DEFAULT_THREADS, help=f"Threads (default: {DEFAULT_THREADS})")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT, help=f"HTTP timeout in seconds (default: {DEFAULT_TIMEOUT})")
     parser.add_argument("--retries", type=int, default=DEFAULT_MAX_RETRIES, help=f"Retries on HTTP 429 with backoff (default: {DEFAULT_MAX_RETRIES}; 0 disables)")
+    parser.add_argument("--delay", type=float, default=DEFAULT_DELAY, help=f"Pause in seconds between requests per worker (default: {DEFAULT_DELAY}; for stealthy/rate-limited targets)")
     parser.add_argument("--status", help="Show only these codes (e.g. 200,403)")
     parser.add_argument("--exclude", help="Exclude codes (e.g. 404,500)")
     parser.add_argument("-a", "--all", action="store_true", help="Show all status codes (except 404)")
@@ -69,6 +71,8 @@ def main(argv: list[str] | None = None) -> int:
         status_filter = parse_status_codes(args.status)
         exclude_filter = parse_status_codes(args.exclude)
         extensions = parse_extensions(args.extensions)
+        if args.delay < 0:
+            raise ValueError("--delay must be >= 0")
     except (ValueError, FileNotFoundError) as exc:
         log.error(f"[bold red]✗[/bold red] {str(exc)}")
         return 2
@@ -99,6 +103,7 @@ def main(argv: list[str] | None = None) -> int:
                 max_retries=max(0, args.retries),
                 extensions=extensions,
                 on_result=record_hit,
+                delay=args.delay,
             )
         )
     except KeyboardInterrupt:

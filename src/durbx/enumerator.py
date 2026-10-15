@@ -14,6 +14,7 @@ import aiohttp
 DEFAULT_TIMEOUT = 3.0
 DEFAULT_THREADS = 50
 DEFAULT_MAX_RETRIES = 3
+DEFAULT_DELAY = 0.0
 RETRY_BACKOFF_BASE = 1.0
 MAX_RETRY_AFTER_SECONDS = 60.0
 
@@ -242,6 +243,7 @@ async def enumerate_directories(
     max_retries: int = DEFAULT_MAX_RETRIES,
     extensions: list[str] | None = None,
     on_result: Callable[[ScanResult], None] | None = None,
+    delay: float = DEFAULT_DELAY,
 ) -> ScanSummary:
     status_filter = status_filter or []
     exclude_filter = exclude_filter or []
@@ -323,6 +325,10 @@ async def enumerate_directories(
                 break
             try:
                 await scan(session, entry)
+                if delay > 0:
+                    # Per-worker pause between requests: keeps request timing
+                    # human-like for stealthy scans and rate-limited targets.
+                    await asyncio.sleep(delay)
             finally:
                 queue.task_done()
 

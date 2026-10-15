@@ -13,6 +13,10 @@ All notable changes to DurbX are documented here. The format follows
   `highlight=False`; output renders as clean colorama colors again.
 
 ### Added
+- `--delay SECONDS`: per-worker pause between requests for stealthy scans
+  against rate-limited targets (default 0; negative values fail fast with
+  exit 2). 4 new unit tests (CLI parsing, negative-value rejection,
+  recorded inter-request sleeps, zero-delay no-op).
 - `-o/--output FILE`: save discovered hits to a file as plain uncolored lines
   (path, code, size, redirect target). Write errors exit 2 instead of
   crashing mid-run. `plain_result_line()` / `render_plain_results()` in
