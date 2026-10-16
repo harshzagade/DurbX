@@ -63,6 +63,7 @@ def print_help():
             ("--exclude", "Exclude these codes [dim](e.g. 404,500)[/dim]"),
             ("--timeout", "Request timeout in seconds [dim](default: 3.0)[/dim]"),
             ("--retries", "Retry 429s with backoff [dim](default: 3; 0 disables)[/dim]"),
+            ("--no-wildcard", "Disable soft-404 wildcard detection"),
         ],
         "OUTPUT & LOGGING": [
             ("--proxy", "HTTP proxy URL"),

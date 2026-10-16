@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from pathlib import Path
+import secrets
 import time
 from typing import Callable
 from urllib.parse import quote
@@ -34,6 +35,18 @@ class ScanSummary:
     total: int
     completed: int
     hits: int
+    wildcard_filtered: int = 0
+    fingerprint: WildcardFingerprint | None = None
+
+
+@dataclass(frozen=True)
+class WildcardFingerprint:
+    """Soft-404 fingerprint: the (status, body size) a random nonexistent
+    path returns on this target. Scan results indistinguishable from it are
+    treated as wildcard noise and hidden."""
+
+    status: int
+    size: int
 
 
 @dataclass(frozen=True)
@@ -209,6 +222,53 @@ async def fetch_with_retry(
             attempt += 1
 
 
+def wildcard_probe_path() -> str:
+    """Random, near-unguessable path used for the soft-404 probe."""
+    return f"durbx-wildcard-{secrets.token_hex(16)}"
+
+
+async def detect_wildcard(
+    session,
+    base_url: str,
+    *,
+    max_retries: int,
+    proxy: str | None = None,
+) -> WildcardFingerprint | None:
+    """Probe a random nonexistent path to fingerprint soft-404 behavior.
+
+    Returns a fingerprint when the probe gets anything other than 404
+    (the server answers unknown paths with content, e.g. a catch-all
+    page or a redirect to one). Returns ``None`` when the probe 404s
+    (no wildcard behavior) or when the probe itself fails — fail open,
+    never filter on a guess.
+    """
+    probe_url = f"{base_url}/{wildcard_probe_path()}"
+    try:
+        outcome = await fetch_with_retry(
+            session,
+            probe_url,
+            max_retries=max_retries,
+            proxy=proxy,
+        )
+    except (aiohttp.ClientError, asyncio.TimeoutError):
+        return None
+    if outcome.status == 404:
+        return None
+    return WildcardFingerprint(status=outcome.status, size=outcome.content_length)
+
+
+def is_wildcard_match(
+    result: ScanResult,
+    fingerprint: WildcardFingerprint | None,
+) -> bool:
+    """True when a result is indistinguishable from the soft-404 probe."""
+    return (
+        fingerprint is not None
+        and result.status_code == fingerprint.status
+        and result.size == fingerprint.size
+    )
+
+
 def should_show_result(
     result: ScanResult,
     status_filter: list[int] | None = None,
@@ -246,6 +306,7 @@ async def enumerate_directories(
     on_result: Callable[[ScanResult], None] | None = None,
     delay: float = DEFAULT_DELAY,
     user_agent: str = DEFAULT_USER_AGENT,
+    detect_wildcards: bool = True,
 ) -> ScanSummary:
     status_filter = status_filter or []
     exclude_filter = exclude_filter or []
@@ -253,6 +314,8 @@ async def enumerate_directories(
     total = len(entries)
     completed = 0
     hits = 0
+    wildcard_filtered = 0
+    fingerprint: WildcardFingerprint | None = None
     start_time = time.time()
     last_render_time = 0.0
     print_lock = asyncio.Lock()
@@ -276,7 +339,7 @@ async def enumerate_directories(
         print(f"\r[{bar}] {percent * 100:4.1f}% ({completed}/{total}) | ETA: {eta}", end="", flush=True)
 
     async def scan(session: aiohttp.ClientSession, entry: str) -> ScanResult:
-        nonlocal completed, hits
+        nonlocal completed, hits, wildcard_filtered
         encoded_entry = quote(entry, safe="/")
         target_url = f"{base_url}/{encoded_entry}"
         try:
@@ -308,7 +371,12 @@ async def enumerate_directories(
 
         async with print_lock:
             completed += 1
-            if should_show_result(result, status_filter=status_filter, exclude_filter=exclude_filter, all_codes=all_codes):
+            if is_wildcard_match(result, fingerprint):
+                # Soft-404 noise: same status + body size as the probe of a
+                # random nonexistent path. Hidden, but counted separately so
+                # the user can see the filter did something.
+                wildcard_filtered += 1
+            elif should_show_result(result, status_filter=status_filter, exclude_filter=exclude_filter, all_codes=all_codes):
                 hits += 1
                 hit = True
                 print("\r" + " " * 100 + "\r", end="")
@@ -345,6 +413,18 @@ async def enumerate_directories(
         timeout=client_timeout,
         headers={"User-Agent": user_agent},
     ) as session:
+        if detect_wildcards:
+            fingerprint = await detect_wildcard(
+                session,
+                base_url,
+                max_retries=max_retries,
+                proxy=proxy,
+            )
+            if fingerprint is not None:
+                print(
+                    f"[i] Wildcard filter active: hiding responses matching "
+                    f"{fingerprint.status} ({fingerprint.size}B)"
+                )
         worker_count = max(1, threads)
         for entry in entries:
             queue.put_nowait(entry)
@@ -363,4 +443,10 @@ async def enumerate_directories(
             raise
 
     print()
-    return ScanSummary(total=total, completed=completed, hits=hits)
+    return ScanSummary(
+        total=total,
+        completed=completed,
+        hits=hits,
+        wildcard_filtered=wildcard_filtered,
+        fingerprint=fingerprint,
+    )

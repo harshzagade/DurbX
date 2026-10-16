@@ -35,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--status", help="Show only these codes (e.g. 200,403)")
     parser.add_argument("--exclude", help="Exclude codes (e.g. 404,500)")
     parser.add_argument("-a", "--all", action="store_true", help="Show all status codes (except 404)")
+    parser.add_argument("--no-wildcard", action="store_true", help="Disable soft-404 wildcard detection")
     parser.add_argument("--proxy", help="Proxy URL (e.g. http://127.0.0.1:8080)")
     parser.add_argument("-o", "--output", help="Save discovered hits to a file")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
@@ -110,6 +111,7 @@ def main(argv: list[str] | None = None) -> int:
                 on_result=record_hit,
                 delay=args.delay,
                 user_agent=user_agent,
+                detect_wildcards=not args.no_wildcard,
             )
         )
     except KeyboardInterrupt:
@@ -130,7 +132,12 @@ def main(argv: list[str] | None = None) -> int:
 
     duration = time.time() - start_time
     if not args.quiet:
-        console.print(f"\n[dim]Finished in {duration:.2f}s. Total hits: {summary.hits}[/dim]")
+        filtered_note = (
+            f" ({summary.wildcard_filtered} hidden by wildcard filter)"
+            if summary.wildcard_filtered
+            else ""
+        )
+        console.print(f"\n[dim]Finished in {duration:.2f}s. Total hits: {summary.hits}{filtered_note}[/dim]")
         console.print(f"[dim]Progress: {summary.completed} / {summary.total} (100.00%)[/dim]")
     
     return 0

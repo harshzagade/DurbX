@@ -13,6 +13,14 @@ All notable changes to DurbX are documented here. The format follows
   `highlight=False`; output renders as clean colorama colors again.
 
 ### Added
+- Wildcard/soft-404 detection: before the scan, a random unguessable path
+  (`durbx-wildcard-<hex>`) is probed and its (status, body size) recorded as
+  a fingerprint; scan results indistinguishable from it are auto-filtered as
+  wildcard noise and counted in the summary
+  (`(N hidden by wildcard filter)`). Enabled by default; `--no-wildcard`
+  disables it. Probe failure fails open (no filtering). `WildcardFingerprint`
+  / `detect_wildcard()` / `is_wildcard_match()` in `enumerator.py`,
+  `ScanSummary` gains `wildcard_filtered` + `fingerprint`; 10 new unit tests.
 - `--delay SECONDS`: per-worker pause between requests for stealthy scans
   against rate-limited targets (default 0; negative values fail fast with
   exit 2). 4 new unit tests (CLI parsing, negative-value rejection,

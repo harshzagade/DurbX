@@ -37,6 +37,7 @@ Real terminal captures from an actual run (local test server — no real target 
 - **Graceful errors** — connection errors and timeouts are caught per-request; `Ctrl+C` exits cleanly
 - **Rate-limit handling** — backs off and retries HTTP 429 responses (exponential backoff, honors the server's `Retry-After` header); tune with `--retries`
 - **Stealth controls** — `--delay` pauses each worker between requests for slower, quieter scans on rate-limited targets; `--user-agent` overrides the default `DurbX/0.1` User-Agent header
+- **Wildcard detection** — before the scan, a random nonexistent path is probed; responses matching its status + body size (soft-404 catch-all pages) are auto-filtered, with a count in the summary (`--no-wildcard` disables)
 
 ---
 
@@ -117,6 +118,9 @@ durbx -u example.com -w words.txt -t 20
 
 # Probe file extensions for every word (word, word.php, word.html, ...)
 durbx -u example.com -w words.txt -x php,html
+
+# Disable soft-404 wildcard detection
+durbx -u example.com -w words.txt --no-wildcard
 ```
 
 ### Integration
@@ -178,6 +182,7 @@ FILTERS
   --exclude               Exclude these codes (e.g. 404,500)
   --timeout               Request timeout in seconds (default: 3.0)
   --retries               Retry 429s with backoff (default: 3; 0 disables)
+  --no-wildcard           Disable soft-404 wildcard detection
 
 OUTPUT & LOGGING
   --proxy                 HTTP proxy URL
@@ -198,8 +203,9 @@ EXAMPLES
 
 1. **URL normalization** — `example.com` → `https://example.com`
 2. **Wordlist loading** — strip whitespace/leading slashes, drop duplicates, skip `#` comments
-3. **Concurrent scan** — a bounded `aiohttp` worker pool (size = `-t`, default 50) GETs each path and records status code, reason, and body size
-4. **Result filtering** — `--status` allowlist wins; else `--all` shows everything except 404; else only `200` is shown; `--exclude` removes codes from any view
+3. **Wildcard probe** — a random nonexistent path is requested first; if the server answers anything other than 404, its status + body size become a soft-404 fingerprint
+4. **Concurrent scan** — a bounded `aiohttp` worker pool (size = `-t`, default 50) GETs each path and records status code, reason, and body size
+5. **Result filtering** — responses matching the wildcard fingerprint are hidden (counted in the summary); then `--status` allowlist wins; else `--all` shows everything except 404; else only `200` is shown; `--exclude` removes codes from any view
 5. **Live display** — results print as they arrive; a progress bar tracks completion with ETA; a summary (`Finished in Xs. Total hits: N`) closes the run
 
 ---
