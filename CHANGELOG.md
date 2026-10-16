@@ -13,6 +13,11 @@ All notable changes to DurbX are documented here. The format follows
   `highlight=False`; output renders as clean colorama colors again.
 
 ### Added
+- `-H/--header` repeatable flag: send custom HTTP headers (auth cookies,
+  tokens) with every request. `parse_headers()` validates the `Name: value`
+  form (RFC 9110 token names; values may contain colons) and fails fast
+  with exit 2 on malformed input; headers merge into the session and take
+  precedence over `--user-agent` (curl parity). 12 new unit tests.
 - Wildcard/soft-404 detection: before the scan, a random unguessable path
   (`durbx-wildcard-<hex>`) is probed and its (status, body size) recorded as
   a fingerprint; scan results indistinguishable from it are auto-filtered as

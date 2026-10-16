@@ -37,6 +37,7 @@ Real terminal captures from an actual run (local test server — no real target 
 - **Graceful errors** — connection errors and timeouts are caught per-request; `Ctrl+C` exits cleanly
 - **Rate-limit handling** — backs off and retries HTTP 429 responses (exponential backoff, honors the server's `Retry-After` header); tune with `--retries`
 - **Stealth controls** — `--delay` pauses each worker between requests for slower, quieter scans on rate-limited targets; `--user-agent` overrides the default `DurbX/0.1` User-Agent header
+- **Custom headers** — repeatable `-H/--header "Name: value"` sends custom HTTP headers (auth cookies, tokens) with every request; a custom `User-Agent` header overrides `--user-agent`
 - **Wildcard detection** — before the scan, a random nonexistent path is probed; responses matching its status + body size (soft-404 catch-all pages) are auto-filtered, with a count in the summary (`--no-wildcard` disables)
 
 ---
@@ -121,6 +122,9 @@ durbx -u example.com -w words.txt -x php,html
 
 # Disable soft-404 wildcard detection
 durbx -u example.com -w words.txt --no-wildcard
+
+# Send custom headers (repeatable) — e.g. auth cookies or tokens
+durbx -u example.com -w words.txt -H "Authorization: Bearer abc" -H "X-Debug: 1"
 ```
 
 ### Integration
@@ -175,6 +179,7 @@ CORE SETTINGS
   -t, --threads           Concurrent threads (default: 50)
   --delay                 Pause between requests per worker (default: 0)
   --user-agent            Custom User-Agent header (default: DurbX/0.1)
+  -H, --header            Custom HTTP header (repeatable; overrides --user-agent)
 
 FILTERS
   -a, --all               Show all status codes (except 404)

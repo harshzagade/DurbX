@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from pathlib import Path
+import re
 import secrets
 import time
 from typing import Callable
@@ -111,6 +112,30 @@ def parse_status_codes(raw_value: str | None) -> list[int]:
         except ValueError as exc:
             raise ValueError(f"Invalid status code: {value}") from exc
     return codes
+
+
+_HEADER_NAME_RE = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
+
+
+def parse_headers(raw_values: list[str] | None) -> dict[str, str]:
+    """Parse repeatable ``-H/--header "Name: value"`` flags into a dict.
+
+    Splits each item on the first colon (values may contain colons).
+    Raises ``ValueError`` when an item has no colon, an empty name, or a
+    name that is not a valid HTTP token (RFC 9110), so malformed headers
+    fail fast instead of blowing up mid-scan. Later duplicates overwrite
+    earlier ones.
+    """
+    headers: dict[str, str] = {}
+    for item in raw_values or []:
+        name, separator, value = item.partition(":")
+        name = name.strip()
+        if not separator or not name:
+            raise ValueError(f"Invalid header (expected 'Name: value'): {item!r}")
+        if not _HEADER_NAME_RE.match(name):
+            raise ValueError(f"Invalid header name: {name!r}")
+        headers[name] = value.strip()
+    return headers
 
 
 def parse_extensions(raw_value: str | None) -> list[str]:
@@ -307,6 +332,7 @@ async def enumerate_directories(
     delay: float = DEFAULT_DELAY,
     user_agent: str = DEFAULT_USER_AGENT,
     detect_wildcards: bool = True,
+    custom_headers: dict[str, str] | None = None,
 ) -> ScanSummary:
     status_filter = status_filter or []
     exclude_filter = exclude_filter or []
@@ -408,10 +434,13 @@ async def enumerate_directories(
         ttl_dns_cache=300,
         ssl=False,
     )
+    # Custom -H headers take precedence over --user-agent (curl parity).
+    request_headers = {"User-Agent": user_agent}
+    request_headers.update(custom_headers or {})
     async with aiohttp.ClientSession(
         connector=connector,
         timeout=client_timeout,
-        headers={"User-Agent": user_agent},
+        headers=request_headers,
     ) as session:
         if detect_wildcards:
             fingerprint = await detect_wildcard(

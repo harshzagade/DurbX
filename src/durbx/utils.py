@@ -56,6 +56,7 @@ def print_help():
             ("-t, --threads", "Concurrent threads [dim](default: 50)[/dim]"),
             ("--delay", "Pause between requests per worker [dim](default: 0)[/dim]"),
             ("--user-agent", "Custom User-Agent header [dim](default: DurbX/0.1)[/dim]"),
+            ("-H, --header", "Custom HTTP header [dim](repeatable; overrides --user-agent)[/dim]"),
         ],
         "FILTERS": [
             ("-a, --all", "Show all status codes [dim](except 404)[/dim]"),
