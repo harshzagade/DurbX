@@ -38,6 +38,7 @@ Real terminal captures from an actual run (local test server — no real target 
 - **Rate-limit handling** — backs off and retries HTTP 429 responses (exponential backoff, honors the server's `Retry-After` header); tune with `--retries`
 - **Stealth controls** — `--delay` pauses each worker between requests for slower, quieter scans on rate-limited targets; `--user-agent` overrides the default `DurbX/0.1` User-Agent header
 - **HTTP method choice** — `-m/--method GET|HEAD|POST` swaps the request verb instead of hard-coding GET (HEAD is lighter on big targets; POST catches methods-only endpoints)
+- **Redirect following** — `--follow-redirects` follows 3xx responses instead of reporting the redirect itself, so results reflect the final status (the soft-404 probe follows the same policy so filtering stays consistent)
 - **Custom headers** — repeatable `-H/--header "Name: value"` sends custom HTTP headers (auth cookies, tokens) with every request; a custom `User-Agent` header overrides `--user-agent`
 - **Wildcard detection** — before the scan, a random nonexistent path is probed; responses matching its status + body size (soft-404 catch-all pages) are auto-filtered, with a count in the summary (`--no-wildcard` disables)
 
@@ -190,6 +191,7 @@ FILTERS
   --timeout               Request timeout in seconds (default: 3.0)
   --retries               Retry 429s with backoff (default: 3; 0 disables)
   --no-wildcard           Disable soft-404 wildcard detection
+  --follow-redirects      Follow 3xx redirects (default: report them)
 
 OUTPUT & LOGGING
   --proxy                 HTTP proxy URL

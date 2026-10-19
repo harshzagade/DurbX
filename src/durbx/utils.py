@@ -66,6 +66,7 @@ def print_help():
             ("--timeout", "Request timeout in seconds [dim](default: 3.0)[/dim]"),
             ("--retries", "Retry 429s with backoff [dim](default: 3; 0 disables)[/dim]"),
             ("--no-wildcard", "Disable soft-404 wildcard detection"),
+            ("--follow-redirects", "Follow 3xx redirects [dim](default: report them)[/dim]"),
         ],
         "OUTPUT & LOGGING": [
             ("--proxy", "HTTP proxy URL"),

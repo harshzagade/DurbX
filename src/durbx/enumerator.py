@@ -277,6 +277,7 @@ async def detect_wildcard(
     *,
     method: str = DEFAULT_METHOD,
     max_retries: int,
+    allow_redirects: bool = False,
     proxy: str | None = None,
 ) -> WildcardFingerprint | None:
     """Probe a random nonexistent path to fingerprint soft-404 behavior.
@@ -285,7 +286,8 @@ async def detect_wildcard(
     (the server answers unknown paths with content, e.g. a catch-all
     page or a redirect to one). Returns ``None`` when the probe 404s
     (no wildcard behavior) or when the probe itself fails — fail open,
-    never filter on a guess.
+    never filter on a guess. Uses the same method and redirect policy as
+    the scan so the fingerprint matches what the scan will actually see.
     """
     probe_url = f"{base_url}/{wildcard_probe_path()}"
     try:
@@ -294,6 +296,7 @@ async def detect_wildcard(
             probe_url,
             method=method,
             max_retries=max_retries,
+            allow_redirects=allow_redirects,
             proxy=proxy,
         )
     except (aiohttp.ClientError, asyncio.TimeoutError):
@@ -353,6 +356,7 @@ async def enumerate_directories(
     delay: float = DEFAULT_DELAY,
     user_agent: str = DEFAULT_USER_AGENT,
     method: str = DEFAULT_METHOD,
+    follow_redirects: bool = False,
     detect_wildcards: bool = True,
     custom_headers: dict[str, str] | None = None,
 ) -> ScanSummary:
@@ -396,6 +400,7 @@ async def enumerate_directories(
                 target_url,
                 method=method,
                 max_retries=max_retries,
+                allow_redirects=follow_redirects,
                 proxy=proxy,
             )
         except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
@@ -471,6 +476,7 @@ async def enumerate_directories(
                 base_url,
                 method=method,
                 max_retries=max_retries,
+                allow_redirects=follow_redirects,
                 proxy=proxy,
             )
             if fingerprint is not None:

@@ -37,6 +37,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--user-agent", default=DEFAULT_USER_AGENT, help=f"Custom User-Agent header (default: {DEFAULT_USER_AGENT})")
     parser.add_argument("-H", "--header", action="append", default=None, help="Custom HTTP header, e.g. -H 'Authorization: Bearer abc' (repeatable; overrides --user-agent)")
     parser.add_argument("-m", "--method", default=DEFAULT_METHOD, help=f"HTTP method for requests (default: {DEFAULT_METHOD}; GET/HEAD/POST)")
+    parser.add_argument("--follow-redirects", action="store_true", help="Follow 3xx redirects instead of reporting them (default: no)")
     parser.add_argument("--status", help="Show only these codes (e.g. 200,403)")
     parser.add_argument("--exclude", help="Exclude codes (e.g. 404,500)")
     parser.add_argument("-a", "--all", action="store_true", help="Show all status codes (except 404)")
@@ -119,6 +120,7 @@ def main(argv: list[str] | None = None) -> int:
                 delay=args.delay,
                 user_agent=user_agent,
                 method=method,
+                follow_redirects=args.follow_redirects,
                 detect_wildcards=not args.no_wildcard,
                 custom_headers=custom_headers,
             )

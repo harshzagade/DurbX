@@ -11,6 +11,11 @@ All notable changes to DurbX are documented here. The format follows
   dispatches via `session.request(method, ...)`, and `parse_method()`
   normalizes case and fails fast with exit 2 on unknown verbs.
   6 new unit tests.
+- `--follow-redirects`: follow 3xx redirects instead of the hard-coded
+  `allow_redirects=False`. `enumerate_directories(follow_redirects=...)`
+  threads the policy through `fetch_with_retry()` and `detect_wildcard()`
+  so the soft-404 fingerprint matches what the scan actually sees.
+  3 new unit tests.
 ### Fixed
 - TTY color bug: on color terminals, scan result lines rendered mangled
   output like literal `ESC[1m[ESC[0m32m` because rich's `ReprHighlighter`
