@@ -18,6 +18,8 @@ DEFAULT_THREADS = 50
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_DELAY = 0.0
 DEFAULT_USER_AGENT = "DurbX/0.1"
+DEFAULT_METHOD = "GET"
+VALID_METHODS = ("GET", "HEAD", "POST")
 RETRY_BACKOFF_BASE = 1.0
 MAX_RETRY_AFTER_SECONDS = 60.0
 
@@ -115,6 +117,21 @@ def parse_status_codes(raw_value: str | None) -> list[int]:
 
 
 _HEADER_NAME_RE = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
+
+
+def parse_method(raw_value: str | None) -> str:
+    """Normalize the ``-m/--method`` value to an uppercase HTTP method.
+
+    Defaults to ``GET``. Raises ``ValueError`` for anything outside
+    GET/HEAD/POST — the only verbs that make sense for directory probing
+    (other verbs would turn the tool into a generic method tester).
+    """
+    method = (raw_value or DEFAULT_METHOD).strip().upper()
+    if method not in VALID_METHODS:
+        raise ValueError(
+            f"Invalid HTTP method: {raw_value!r} (choose from {', '.join(VALID_METHODS)})"
+        )
+    return method
 
 
 def parse_headers(raw_values: list[str] | None) -> dict[str, str]:
@@ -219,10 +236,12 @@ async def fetch_with_retry(
     session,
     url: str,
     *,
+    method: str = DEFAULT_METHOD,
     max_retries: int,
+    allow_redirects: bool = False,
     proxy: str | None = None,
 ) -> FetchOutcome:
-    """GET ``url``, backing off and retrying on HTTP 429.
+    """Request ``url`` with ``method``, backing off and retrying on HTTP 429.
 
     Retries up to ``max_retries`` times after the first attempt (0 disables
     retrying). Waits out the server's ``Retry-After`` header when present,
@@ -233,7 +252,7 @@ async def fetch_with_retry(
     retries = max(0, max_retries)
     attempt = 0
     while True:
-        async with session.get(url, allow_redirects=False, proxy=proxy) as response:
+        async with session.request(method, url, allow_redirects=allow_redirects, proxy=proxy) as response:
             status = response.status
             if status != 429 or attempt >= retries:
                 return FetchOutcome(
@@ -256,6 +275,7 @@ async def detect_wildcard(
     session,
     base_url: str,
     *,
+    method: str = DEFAULT_METHOD,
     max_retries: int,
     proxy: str | None = None,
 ) -> WildcardFingerprint | None:
@@ -272,6 +292,7 @@ async def detect_wildcard(
         outcome = await fetch_with_retry(
             session,
             probe_url,
+            method=method,
             max_retries=max_retries,
             proxy=proxy,
         )
@@ -331,6 +352,7 @@ async def enumerate_directories(
     on_result: Callable[[ScanResult], None] | None = None,
     delay: float = DEFAULT_DELAY,
     user_agent: str = DEFAULT_USER_AGENT,
+    method: str = DEFAULT_METHOD,
     detect_wildcards: bool = True,
     custom_headers: dict[str, str] | None = None,
 ) -> ScanSummary:
@@ -372,6 +394,7 @@ async def enumerate_directories(
             outcome = await fetch_with_retry(
                 session,
                 target_url,
+                method=method,
                 max_retries=max_retries,
                 proxy=proxy,
             )
@@ -446,6 +469,7 @@ async def enumerate_directories(
             fingerprint = await detect_wildcard(
                 session,
                 base_url,
+                method=method,
                 max_retries=max_retries,
                 proxy=proxy,
             )

@@ -37,6 +37,7 @@ Real terminal captures from an actual run (local test server — no real target 
 - **Graceful errors** — connection errors and timeouts are caught per-request; `Ctrl+C` exits cleanly
 - **Rate-limit handling** — backs off and retries HTTP 429 responses (exponential backoff, honors the server's `Retry-After` header); tune with `--retries`
 - **Stealth controls** — `--delay` pauses each worker between requests for slower, quieter scans on rate-limited targets; `--user-agent` overrides the default `DurbX/0.1` User-Agent header
+- **HTTP method choice** — `-m/--method GET|HEAD|POST` swaps the request verb instead of hard-coding GET (HEAD is lighter on big targets; POST catches methods-only endpoints)
 - **Custom headers** — repeatable `-H/--header "Name: value"` sends custom HTTP headers (auth cookies, tokens) with every request; a custom `User-Agent` header overrides `--user-agent`
 - **Wildcard detection** — before the scan, a random nonexistent path is probed; responses matching its status + body size (soft-404 catch-all pages) are auto-filtered, with a count in the summary (`--no-wildcard` disables)
 
@@ -180,6 +181,7 @@ CORE SETTINGS
   --delay                 Pause between requests per worker (default: 0)
   --user-agent            Custom User-Agent header (default: DurbX/0.1)
   -H, --header            Custom HTTP header (repeatable; overrides --user-agent)
+  -m, --method            HTTP request method (default: GET; GET/HEAD/POST)
 
 FILTERS
   -a, --all               Show all status codes (except 404)

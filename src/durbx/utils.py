@@ -57,6 +57,7 @@ def print_help():
             ("--delay", "Pause between requests per worker [dim](default: 0)[/dim]"),
             ("--user-agent", "Custom User-Agent header [dim](default: DurbX/0.1)[/dim]"),
             ("-H, --header", "Custom HTTP header [dim](repeatable; overrides --user-agent)[/dim]"),
+            ("-m, --method", "HTTP request method [dim](GET/HEAD/POST; default: GET)[/dim]"),
         ],
         "FILTERS": [
             ("-a, --all", "Show all status codes [dim](except 404)[/dim]"),

@@ -5,6 +5,7 @@ import time
 from .enumerator import (
     DEFAULT_DELAY,
     DEFAULT_MAX_RETRIES,
+    DEFAULT_METHOD,
     DEFAULT_THREADS,
     DEFAULT_TIMEOUT,
     DEFAULT_USER_AGENT,
@@ -13,6 +14,7 @@ from .enumerator import (
     normalize_target,
     parse_extensions,
     parse_headers,
+    parse_method,
     parse_status_codes,
 )
 from .formatter import format_result, render_plain_results
@@ -34,6 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--delay", type=float, default=DEFAULT_DELAY, help=f"Pause in seconds between requests per worker (default: {DEFAULT_DELAY}; for stealthy/rate-limited targets)")
     parser.add_argument("--user-agent", default=DEFAULT_USER_AGENT, help=f"Custom User-Agent header (default: {DEFAULT_USER_AGENT})")
     parser.add_argument("-H", "--header", action="append", default=None, help="Custom HTTP header, e.g. -H 'Authorization: Bearer abc' (repeatable; overrides --user-agent)")
+    parser.add_argument("-m", "--method", default=DEFAULT_METHOD, help=f"HTTP method for requests (default: {DEFAULT_METHOD}; GET/HEAD/POST)")
     parser.add_argument("--status", help="Show only these codes (e.g. 200,403)")
     parser.add_argument("--exclude", help="Exclude codes (e.g. 404,500)")
     parser.add_argument("-a", "--all", action="store_true", help="Show all status codes (except 404)")
@@ -81,6 +84,7 @@ def main(argv: list[str] | None = None) -> int:
         user_agent = args.user_agent
         if not user_agent or not user_agent.strip():
             raise ValueError("--user-agent must not be empty")
+        method = parse_method(args.method)
         custom_headers = parse_headers(args.header)
     except (ValueError, FileNotFoundError) as exc:
         log.error(f"[bold red]✗[/bold red] {str(exc)}")
@@ -114,6 +118,7 @@ def main(argv: list[str] | None = None) -> int:
                 on_result=record_hit,
                 delay=args.delay,
                 user_agent=user_agent,
+                method=method,
                 detect_wildcards=not args.no_wildcard,
                 custom_headers=custom_headers,
             )

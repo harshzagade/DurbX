@@ -34,7 +34,7 @@ class _FakeResponse:
 
 
 class _FakeSession:
-    """Replays a script of responses; mimics aiohttp's `session.get(...)` API."""
+    """Replays a script of responses; mimics aiohttp's `session.request(...)` API."""
 
     def __init__(self, script: list) -> None:
         self._script = list(script)
@@ -42,6 +42,9 @@ class _FakeSession:
         self.urls: list[str] = []
 
     def get(self, url: str, **kwargs):
+        return self.request("GET", url, **kwargs)
+
+    def request(self, method: str, url: str, **kwargs):
         index = min(self.calls, len(self._script) - 1)
         self.calls += 1
         self.urls.append(url)

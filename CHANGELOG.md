@@ -5,6 +5,12 @@ All notable changes to DurbX are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- `-m/--method METHOD`: choose the HTTP request method instead of hard-coded
+  GET — one of `GET` (default), `HEAD`, `POST`. `fetch_with_retry()` now
+  dispatches via `session.request(method, ...)`, and `parse_method()`
+  normalizes case and fails fast with exit 2 on unknown verbs.
+  6 new unit tests.
 ### Fixed
 - TTY color bug: on color terminals, scan result lines rendered mangled
   output like literal `ESC[1m[ESC[0m32m` because rich's `ReprHighlighter`

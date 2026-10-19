@@ -44,7 +44,7 @@ def _make_aiohttp_stub() -> types.ModuleType:
             return False
 
     class ClientSession:
-        """Records constructor args; `get()` returns a canned 200 response."""
+        """Records constructor args; `request()` returns a canned 200 response."""
 
         instances: list = []
 
@@ -53,6 +53,7 @@ def _make_aiohttp_stub() -> types.ModuleType:
             self.timeout = timeout
             self.headers = dict(headers or {})
             self.get_count = 0
+            self.requests: list[tuple[str, str, dict]] = []
             type(self).instances.append(self)
 
         async def __aenter__(self) -> "ClientSession":
@@ -62,7 +63,11 @@ def _make_aiohttp_stub() -> types.ModuleType:
             return False
 
         def get(self, url: str, **kwargs):
+            return self.request("GET", url, **kwargs)
+
+        def request(self, method: str, url: str, **kwargs):
             self.get_count += 1
+            self.requests.append((method, url, kwargs))
             return _StubResponse()
 
     class ClientTimeout:
