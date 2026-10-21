@@ -10,6 +10,7 @@ from .enumerator import (
     DEFAULT_TIMEOUT,
     DEFAULT_USER_AGENT,
     enumerate_directories,
+    load_targets,
     load_wordlist,
     normalize_target,
     parse_extensions,
@@ -27,7 +28,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="DurbX - Directory Enumeration Tool",
         add_help=False
     )
-    parser.add_argument("-u", "--url", required=True, help="Target URL")
+    parser.add_argument("-u", "--url", help="Target URL (use --targets for many)")
+    parser.add_argument("--targets", help="File with target URLs, one per line (use instead of -u)")
     parser.add_argument("-w", "--wordlist", required=True, help="Wordlist file to use")
     parser.add_argument("-x", "--extensions", help="Append file extensions to each word (e.g. php,html)")
     parser.add_argument("-t", "--threads", type=int, default=DEFAULT_THREADS, help=f"Threads (default: {DEFAULT_THREADS})")
@@ -67,16 +69,20 @@ def main(argv: list[str] | None = None) -> int:
     
     log = setup_logging(args.verbose, args.quiet)
 
-    if not args.quiet:
-        console.print(LOGO)
-        console.print()
-        console.print(f"[dim]Target:[/dim] [bold white]{args.url}[/bold white] [dim]|[/dim] [dim]Threads:[/dim] [white]{args.threads}[/white] [dim]|[/dim] [dim]Wordlist:[/dim] [white]{args.wordlist}[/white]\n")
-
-    start_time = time.time()
-
     try:
-        base_url = normalize_target(args.url)
+        if args.url and args.targets:
+            raise ValueError("Use either -u/--url or --targets, not both")
+        if args.targets:
+            base_urls = load_targets(args.targets)
+        elif args.url:
+            base_urls = [normalize_target(args.url)]
+        else:
+            raise ValueError("A target is required: use -u/--url or --targets FILE")
+        if not base_urls:
+            raise ValueError("The targets file contained no valid targets")
         entries = load_wordlist(args.wordlist)
+        if not entries:
+            raise ValueError("No wordlist entries were loaded.")
         status_filter = parse_status_codes(args.status)
         exclude_filter = parse_status_codes(args.exclude)
         extensions = parse_extensions(args.extensions)
@@ -91,40 +97,54 @@ def main(argv: list[str] | None = None) -> int:
         log.error(f"[bold red]✗[/bold red] {str(exc)}")
         return 2
 
-    if not entries:
-        log.error("[bold red]✗[/bold red] No wordlist entries were loaded.")
-        return 2
+    if not args.quiet:
+        console.print(LOGO)
+        console.print()
+        if len(base_urls) == 1:
+            console.print(f"[dim]Target:[/dim] [bold white]{base_urls[0]}[/bold white] [dim]|[/dim] [dim]Threads:[/dim] [white]{args.threads}[/white] [dim]|[/dim] [dim]Wordlist:[/dim] [white]{args.wordlist}[/white]\n")
+        else:
+            console.print(f"[dim]Targets:[/dim] [bold white]{len(base_urls)}[/bold white] [dim]from[/dim] [white]{args.targets}[/white] [dim]|[/dim] [dim]Threads:[/dim] [white]{args.threads}[/white] [dim]|[/dim] [dim]Wordlist:[/dim] [white]{args.wordlist}[/white]\n")
 
-    log.info(f"[bold blue]i[/bold blue] Starting discovery for [white]{len(entries)}[/white] paths...")
+    start_time = time.time()
 
     hits: list = []
+    summaries: list = []
+    hits_by_target: list[tuple[str, list]] = []
 
     def record_hit(result) -> None:
         hits.append(result)
         console.print(format_result(result), highlight=False)
 
     try:
-        summary = asyncio.run(
-            enumerate_directories(
-                base_url=base_url,
-                entries=entries,
-                timeout=max(args.timeout, 0.1),
-                threads=max(args.threads, 1),
-                status_filter=status_filter,
-                exclude_filter=exclude_filter,
-                all_codes=args.all,
-                proxy=args.proxy,
-                max_retries=max(0, args.retries),
-                extensions=extensions,
-                on_result=record_hit,
-                delay=args.delay,
-                user_agent=user_agent,
-                method=method,
-                follow_redirects=args.follow_redirects,
-                detect_wildcards=not args.no_wildcard,
-                custom_headers=custom_headers,
+        for index, base_url in enumerate(base_urls, start=1):
+            if len(base_urls) > 1 and not args.quiet:
+                console.print(f"\n[dim]Target {index}/{len(base_urls)}:[/dim] [bold white]{base_url}[/bold white]\n")
+            log.info(f"[bold blue]i[/bold blue] Starting discovery for [white]{len(entries)}[/white] paths...")
+            before = len(hits)
+            summaries.append(
+                asyncio.run(
+                    enumerate_directories(
+                        base_url=base_url,
+                        entries=entries,
+                        timeout=max(args.timeout, 0.1),
+                        threads=max(args.threads, 1),
+                        status_filter=status_filter,
+                        exclude_filter=exclude_filter,
+                        all_codes=args.all,
+                        proxy=args.proxy,
+                        max_retries=max(0, args.retries),
+                        extensions=extensions,
+                        on_result=record_hit,
+                        delay=args.delay,
+                        user_agent=user_agent,
+                        method=method,
+                        follow_redirects=args.follow_redirects,
+                        detect_wildcards=not args.no_wildcard,
+                        custom_headers=custom_headers,
+                    )
+                )
             )
-        )
+            hits_by_target.append((base_url, hits[before:]))
     except KeyboardInterrupt:
         console.print(f"\n[bold red][!] Scan interrupted by user. Exiting...[/bold red]")
         return 130
@@ -132,9 +152,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.output:
         try:
             with open(args.output, "w", encoding="utf-8") as handle:
-                handle.write(render_plain_results(hits))
-                if hits:
-                    handle.write("\n")
+                for base_url, target_hits in hits_by_target:
+                    if len(base_urls) > 1:
+                        handle.write(f"# Target: {base_url}\n")
+                    if target_hits:
+                        handle.write(render_plain_results(target_hits))
+                        handle.write("\n")
+                    if len(base_urls) > 1:
+                        handle.write("\n")
         except OSError as exc:
             log.error(f"[bold red]✗[/bold red] Could not write output file: {exc}")
             return 2
@@ -143,13 +168,20 @@ def main(argv: list[str] | None = None) -> int:
 
     duration = time.time() - start_time
     if not args.quiet:
+        total_hits = sum(summary.hits for summary in summaries)
+        total_filtered = sum(summary.wildcard_filtered for summary in summaries)
+        total_completed = sum(summary.completed for summary in summaries)
+        total_scanned = sum(summary.total for summary in summaries)
         filtered_note = (
-            f" ({summary.wildcard_filtered} hidden by wildcard filter)"
-            if summary.wildcard_filtered
+            f" ({total_filtered} hidden by wildcard filter)"
+            if total_filtered
             else ""
         )
-        console.print(f"\n[dim]Finished in {duration:.2f}s. Total hits: {summary.hits}{filtered_note}[/dim]")
-        console.print(f"[dim]Progress: {summary.completed} / {summary.total} (100.00%)[/dim]")
+        if len(base_urls) > 1:
+            console.print(f"\n[dim]Finished in {duration:.2f}s. Total hits across {len(base_urls)} targets: {total_hits}{filtered_note}[/dim]")
+        else:
+            console.print(f"\n[dim]Finished in {duration:.2f}s. Total hits: {total_hits}{filtered_note}[/dim]")
+        console.print(f"[dim]Progress: {total_completed} / {total_scanned} (100.00%)[/dim]")
     
     return 0
 

@@ -51,6 +51,7 @@ def print_help():
     groups = {
         "CORE SETTINGS": [
             ("-u, --url", "Target URL [dim](e.g. https://example.com)[/dim]"),
+            ("--targets", "Target list file [dim](one URL per line; use instead of -u)[/dim]"),
             ("-w, --wordlist", "Path to wordlist file"),
             ("-x, --extensions", "Append extensions to each word [dim](e.g. php,html)[/dim]"),
             ("-t, --threads", "Concurrent threads [dim](default: 50)[/dim]"),
@@ -90,5 +91,6 @@ def print_help():
         
     console.print(f"\n[bold white]EXAMPLES[/bold white]")
     console.print("  [dim]$[/dim] durbx -u https://example.com -w common.txt")
+    console.print("  [dim]$[/dim] durbx --targets targets.txt -w common.txt -q")
     console.print("  [dim]$[/dim] durbx -u example.com -w words.txt --status 200,301")
     console.print("  [dim]$[/dim] durbx -u example.com -w words.txt -t 100 -q\n")

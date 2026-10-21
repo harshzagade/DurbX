@@ -101,6 +101,38 @@ def load_wordlist(path: str) -> list[str]:
     return entries
 
 
+def load_targets(path: str) -> list[str]:
+    """Read target URLs from a file, one per line.
+
+    Blank lines and ``#`` comments are skipped. Each remaining line is
+    normalized with ``normalize_target()`` (a missing scheme defaults to
+    https). Duplicates are dropped, order preserved.
+
+    Raises ``FileNotFoundError`` for a missing file and ``ValueError``
+    (naming the offending line number) for a line that is not a valid
+    target, so a typo fails fast instead of silently scanning junk.
+    """
+    source = Path(path).expanduser().resolve()
+    if not source.is_file():
+        raise FileNotFoundError(f"Targets file not found: {source}")
+    targets: list[str] = []
+    seen: set[str] = set()
+    for lineno, raw_line in enumerate(
+        source.read_text(encoding="utf-8").splitlines(), start=1
+    ):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        try:
+            normalized = normalize_target(line)
+        except ValueError as exc:
+            raise ValueError(f"Invalid target on line {lineno}: {exc}") from exc
+        if normalized not in seen:
+            seen.add(normalized)
+            targets.append(normalized)
+    return targets
+
+
 def parse_status_codes(raw_value: str | None) -> list[int]:
     if not raw_value:
         return []

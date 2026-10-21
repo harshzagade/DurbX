@@ -6,6 +6,14 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--targets FILE`: scan multiple base URLs from a file, one per line (use
+  instead of `-u/--url`, which is no longer required; the two are mutually
+  exclusive). Blank lines and `#` comments are skipped, targets are normalized
+  (`example.com` -> `https://example.com`) and deduped; each target is scanned
+  sequentially with its own wildcard probe and per-target progress, and `-o`
+  output groups hits under `# Target: <url>` section headers. A missing file,
+  an empty file, or an invalid line all fail fast with exit 2.
+  7 new unit tests.
 - `-m/--method METHOD`: choose the HTTP request method instead of hard-coded
   GET — one of `GET` (default), `HEAD`, `POST`. `fetch_with_retry()` now
   dispatches via `session.request(method, ...)`, and `parse_method()`

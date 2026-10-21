@@ -41,6 +41,7 @@ Real terminal captures from an actual run (local test server — no real target 
 - **Redirect following** — `--follow-redirects` follows 3xx responses instead of reporting the redirect itself, so results reflect the final status (the soft-404 probe follows the same policy so filtering stays consistent)
 - **Custom headers** — repeatable `-H/--header "Name: value"` sends custom HTTP headers (auth cookies, tokens) with every request; a custom `User-Agent` header overrides `--user-agent`
 - **Wildcard detection** — before the scan, a random nonexistent path is probed; responses matching its status + body size (soft-404 catch-all pages) are auto-filtered, with a count in the summary (`--no-wildcard` disables)
+- **Multi-target scans** — `--targets FILE` scans several base URLs from one file (one per line, `#` comments and blanks skipped, targets normalized and deduped); each target gets its own wildcard probe, and `-o` output groups hits under `# Target: <url>` section headers
 
 ---
 
@@ -176,6 +177,7 @@ USAGE
 
 CORE SETTINGS
   -u, --url               Target URL (e.g. https://example.com)
+  --targets               Target list file (one URL per line; use instead of -u)
   -w, --wordlist          Path to wordlist file
   -x, --extensions        Append extensions to each word (e.g. php,html)
   -t, --threads           Concurrent threads (default: 50)
@@ -202,6 +204,7 @@ OUTPUT & LOGGING
 
 EXAMPLES
   $ durbx -u https://example.com -w common.txt
+  $ durbx --targets targets.txt -w common.txt -q
   $ durbx -u example.com -w words.txt --status 200,301
   $ durbx -u example.com -w words.txt -t 100 -q
 ```
