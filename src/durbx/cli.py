@@ -14,6 +14,7 @@ from .enumerator import (
     load_wordlist,
     normalize_target,
     parse_extensions,
+    parse_filter_lengths,
     parse_headers,
     parse_method,
     parse_status_codes,
@@ -42,6 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--follow-redirects", action="store_true", help="Follow 3xx redirects instead of reporting them (default: no)")
     parser.add_argument("--status", help="Show only these codes (e.g. 200,403)")
     parser.add_argument("--exclude", help="Exclude codes (e.g. 404,500)")
+    parser.add_argument("--filter-length", help="Hide responses with these body sizes in bytes (e.g. 1234,5678)")
     parser.add_argument("-a", "--all", action="store_true", help="Show all status codes (except 404)")
     parser.add_argument("--no-wildcard", action="store_true", help="Disable soft-404 wildcard detection")
     parser.add_argument("--proxy", help="Proxy URL (e.g. http://127.0.0.1:8080)")
@@ -85,6 +87,7 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("No wordlist entries were loaded.")
         status_filter = parse_status_codes(args.status)
         exclude_filter = parse_status_codes(args.exclude)
+        filter_lengths = parse_filter_lengths(args.filter_length)
         extensions = parse_extensions(args.extensions)
         if args.delay < 0:
             raise ValueError("--delay must be >= 0")
@@ -141,6 +144,7 @@ def main(argv: list[str] | None = None) -> int:
                         follow_redirects=args.follow_redirects,
                         detect_wildcards=not args.no_wildcard,
                         custom_headers=custom_headers,
+                        filter_lengths=filter_lengths,
                     )
                 )
             )

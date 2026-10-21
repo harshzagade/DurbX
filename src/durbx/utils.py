@@ -64,6 +64,7 @@ def print_help():
             ("-a, --all", "Show all status codes [dim](except 404)[/dim]"),
             ("--status", "Show only these codes [dim](default: 200)[/dim]"),
             ("--exclude", "Exclude these codes [dim](e.g. 404,500)[/dim]"),
+            ("--filter-length", "Hide responses with these body sizes [dim](e.g. 1234,5678)[/dim]"),
             ("--timeout", "Request timeout in seconds [dim](default: 3.0)[/dim]"),
             ("--retries", "Retry 429s with backoff [dim](default: 3; 0 disables)[/dim]"),
             ("--no-wildcard", "Disable soft-404 wildcard detection"),

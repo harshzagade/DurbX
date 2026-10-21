@@ -148,6 +148,29 @@ def parse_status_codes(raw_value: str | None) -> list[int]:
     return codes
 
 
+def parse_filter_lengths(raw_value: str | None) -> list[int]:
+    """Parse a comma-separated list of response body sizes into ints.
+
+    Raises ``ValueError`` for non-integer tokens or negative values — a
+    negative size can never match, so it is almost certainly a typo.
+    """
+    if not raw_value:
+        return []
+    sizes: list[int] = []
+    for chunk in raw_value.split(","):
+        value = chunk.strip()
+        if not value:
+            continue
+        try:
+            size = int(value)
+        except ValueError as exc:
+            raise ValueError(f"Invalid body size: {value}") from exc
+        if size < 0:
+            raise ValueError(f"Invalid body size (must be >= 0): {value}")
+        sizes.append(size)
+    return sizes
+
+
 _HEADER_NAME_RE = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
 
 
@@ -355,14 +378,21 @@ def should_show_result(
     status_filter: list[int] | None = None,
     exclude_filter: list[int] | None = None,
     all_codes: bool = False,
+    filter_lengths: list[int] | None = None,
 ) -> bool:
     status_filter = status_filter or []
     exclude_filter = exclude_filter or []
+    filter_lengths = filter_lengths or []
     if result.status_code is None:
         return False
     if status_filter and result.status_code not in status_filter:
         return False
     if exclude_filter and result.status_code in exclude_filter:
+        return False
+    # --filter-length (gobuster-style): hide responses whose body size matches
+    # one of the given sizes. Checked before the --all default rule so an
+    # explicit user filter always wins.
+    if filter_lengths and result.size in filter_lengths:
         return False
     # If all_codes flag is set, show everything except 404
     if all_codes:
@@ -391,9 +421,11 @@ async def enumerate_directories(
     follow_redirects: bool = False,
     detect_wildcards: bool = True,
     custom_headers: dict[str, str] | None = None,
+    filter_lengths: list[int] | None = None,
 ) -> ScanSummary:
     status_filter = status_filter or []
     exclude_filter = exclude_filter or []
+    filter_lengths = filter_lengths or []
     entries = expand_extensions(entries, extensions or [])
     total = len(entries)
     completed = 0
@@ -462,7 +494,7 @@ async def enumerate_directories(
                 # random nonexistent path. Hidden, but counted separately so
                 # the user can see the filter did something.
                 wildcard_filtered += 1
-            elif should_show_result(result, status_filter=status_filter, exclude_filter=exclude_filter, all_codes=all_codes):
+            elif should_show_result(result, status_filter=status_filter, exclude_filter=exclude_filter, all_codes=all_codes, filter_lengths=filter_lengths):
                 hits += 1
                 hit = True
                 print("\r" + " " * 100 + "\r", end="")

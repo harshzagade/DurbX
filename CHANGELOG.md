@@ -14,6 +14,12 @@ All notable changes to DurbX are documented here. The format follows
   output groups hits under `# Target: <url>` section headers. A missing file,
   an empty file, or an invalid line all fail fast with exit 2.
   7 new unit tests.
+- `--filter-length N`: hide responses whose body size equals N (gobuster-style),
+  for cutting through identical-size noise. Comma-separated for several sizes
+  (`--filter-length 1234,5678`); `parse_filter_lengths()` fails fast with exit
+  2 on non-integer or negative values; the filter is checked before the `--all`
+  default rule so an explicit user filter always wins; `render_results()` also
+  honors it. 7 new unit tests.
 - `-m/--method METHOD`: choose the HTTP request method instead of hard-coded
   GET — one of `GET` (default), `HEAD`, `POST`. `fetch_with_retry()` now
   dispatches via `session.request(method, ...)`, and `parse_method()`

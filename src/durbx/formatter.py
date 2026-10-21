@@ -48,12 +48,13 @@ def render_plain_results(results: list[ScanResult]) -> str:
     return "\n".join(plain_result_line(result) for result in results)
 
 
-def render_results(results: list[ScanResult], status_filter: list[int] | None = None, exclude_filter: list[int] | None = None) -> str:
+def render_results(results: list[ScanResult], status_filter: list[int] | None = None, exclude_filter: list[int] | None = None, filter_lengths: list[int] | None = None) -> str:
     status_filter = status_filter or []
     exclude_filter = exclude_filter or []
+    filter_lengths = filter_lengths or []
     visible = []
     for result in results:
-        if not should_show_result(result, status_filter=status_filter, exclude_filter=exclude_filter):
+        if not should_show_result(result, status_filter=status_filter, exclude_filter=exclude_filter, filter_lengths=filter_lengths):
             continue
         visible.append(result)
 
