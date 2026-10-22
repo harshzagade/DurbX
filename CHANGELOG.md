@@ -6,6 +6,19 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--checkpoint FILE` + `--resume FILE`: resume support for interrupted
+  scans (single-target only). `--checkpoint` writes progress checkpoints
+  (target, full expanded entry list, completed entries, finished flag) at scan
+  start, at most every 10s during the scan, and at completion — via a temp
+  file + rename so a kill can never leave a corrupt checkpoint, and a failed
+  write warns once without killing the scan. `--resume` continues where the
+  scan stopped: already-scanned entries are skipped, scan stats count the
+  whole original scan, and progress is written back to the checkpoint file.
+  `--resume` fails fast (exit 2) on a missing/corrupt checkpoint, a
+  finished scan, a `-u` target or wordlist/extensions that no longer match
+  the checkpoint, and on combination with `--targets` (ditto `--checkpoint`).
+  `write_checkpoint()`/`load_checkpoint()` in enumerator.py with versioned
+  payload validation. 10 new unit tests.
 - `--json FILE`: machine-readable final report for pipelines — writes a JSON
   document with a `stats` block (targets, completed/total counts, hit count,
   wildcard-filtered count, duration) plus every hit (target, path, URL, status

@@ -74,6 +74,8 @@ def print_help():
             ("--proxy", "HTTP proxy URL"),
             ("-o, --output", "Save hits to a file"),
             ("--json", "Save a machine-readable JSON report (hits + stats) to a file"),
+            ("--checkpoint", "Write resume checkpoints during the scan [dim](single-target)[/dim]"),
+            ("--resume", "Resume an interrupted scan from a checkpoint [dim](single-target)[/dim]"),
             ("-v, --verbose", "Enable detailed logging"),
             ("-q, --quiet", "Minimal output mode"),
             ("-h, --help", "Show this help message"),

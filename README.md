@@ -43,6 +43,8 @@ Real terminal captures from an actual run (local test server — no real target 
 - **Wildcard detection** — before the scan, a random nonexistent path is probed; responses matching its status + body size (soft-404 catch-all pages) are auto-filtered, with a count in the summary (`--no-wildcard` disables)
 - **Multi-target scans** — `--targets FILE` scans several base URLs from one file (one per line, `#` comments and blanks skipped, targets normalized and deduped); each target gets its own wildcard probe, and `-o` output groups hits under `# Target: <url>` section headers
 - **Body-size filtering** — `--filter-length N` (gobuster-style) hides responses whose body size equals N, for cutting through identical-size noise; comma-separated for several sizes, applies even under `--all`
+- **JSON report** — `--json report.json` writes a machine-readable final report (every hit plus an aggregate `stats` block: completed/total, hit count, wildcard-filtered count, duration) for CI and recon pipelines
+- **Resume support** — `--checkpoint cp.json` writes progress checkpoints during a scan (temp-file + rename, so a kill never corrupts it); `--resume cp.json` continues an interrupted scan exactly where it stopped, skipping already-scanned entries. Single-target only; the checkpoint refuses mismatched targets/wordlists and already-finished scans
 
 ---
 
@@ -114,6 +116,13 @@ durbx -u https://example.com -w wordlist.txt -q
 
 # Save discovered hits to a file (plain text, no color codes)
 durbx -u https://example.com -w wordlist.txt -o hits.txt
+
+# Machine-readable JSON report (hits + stats) for pipelines
+durbx -u https://example.com -w wordlist.txt --json report.json
+
+# Long scan? Write checkpoints, then resume after an interrupt
+durbx -u https://example.com -w biglist.txt --checkpoint cp.json
+durbx --resume cp.json -w biglist.txt
 
 # Verbose logging
 durbx -u https://example.com -w wordlist.txt -v
@@ -201,6 +210,8 @@ OUTPUT & LOGGING
   --proxy                 HTTP proxy URL
   -o, --output            Save hits to a file
   --json                  Save a machine-readable JSON report (hits + stats) to a file
+  --checkpoint            Write resume checkpoints during the scan (single-target)
+  --resume                Resume an interrupted scan from a checkpoint (single-target)
   -v, --verbose           Enable detailed logging
   -q, --quiet             Minimal output mode
   -h, --help              Show this help message

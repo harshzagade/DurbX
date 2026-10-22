@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+import json
 from pathlib import Path
 import re
 import secrets
@@ -22,6 +23,8 @@ DEFAULT_METHOD = "GET"
 VALID_METHODS = ("GET", "HEAD", "POST")
 RETRY_BACKOFF_BASE = 1.0
 MAX_RETRY_AFTER_SECONDS = 60.0
+CHECKPOINT_VERSION = 1
+DEFAULT_CHECKPOINT_EVERY = 10.0
 
 
 @dataclass(frozen=True)
@@ -131,6 +134,61 @@ def load_targets(path: str) -> list[str]:
             seen.add(normalized)
             targets.append(normalized)
     return targets
+
+
+def write_checkpoint(
+    path: str,
+    *,
+    target: str,
+    entries: list[str],
+    completed: list[str],
+    finished: bool,
+) -> None:
+    """Write a resume checkpoint as JSON (via a temp file + rename, so an
+    interrupted write never leaves a corrupt checkpoint behind).
+
+    ``entries`` is the full expanded entry list (order preserved) and
+    ``completed`` the subset already processed; ``finished`` marks a scan
+    that ran to completion, which ``--resume`` refuses to re-run.
+    """
+    payload = {
+        "tool": "durbx",
+        "checkpoint_version": CHECKPOINT_VERSION,
+        "target": target,
+        "finished": finished,
+        "entries": list(entries),
+        "completed": list(completed),
+    }
+    tmp = Path(str(path) + ".tmp")
+    tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    tmp.replace(path)
+
+
+def load_checkpoint(path: str) -> dict:
+    """Read and validate a checkpoint written by ``write_checkpoint``.
+
+    Raises ``FileNotFoundError`` for a missing file and ``ValueError`` for
+    anything that is not a DurbX checkpoint of the supported version.
+    """
+    source = Path(path).expanduser()
+    if not source.is_file():
+        raise FileNotFoundError(f"Checkpoint not found: {source}")
+    try:
+        payload = json.loads(source.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ValueError(f"Checkpoint is not valid JSON: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("Checkpoint is not a JSON object")
+    if payload.get("tool") != "durbx":
+        raise ValueError("Checkpoint was not written by DurbX")
+    if payload.get("checkpoint_version") != CHECKPOINT_VERSION:
+        raise ValueError(
+            f"Unsupported checkpoint version: {payload.get('checkpoint_version')!r}"
+        )
+    for key in ("target", "entries", "completed", "finished"):
+        if key not in payload:
+            raise ValueError(f"Checkpoint is missing {key!r}")
+    return payload
 
 
 def parse_status_codes(raw_value: str | None) -> list[int]:
@@ -422,12 +480,15 @@ async def enumerate_directories(
     detect_wildcards: bool = True,
     custom_headers: dict[str, str] | None = None,
     filter_lengths: list[int] | None = None,
+    checkpoint_file: str | None = None,
+    checkpoint_every: float = DEFAULT_CHECKPOINT_EVERY,
+    resume_completed: list[str] | None = None,
 ) -> ScanSummary:
     status_filter = status_filter or []
     exclude_filter = exclude_filter or []
     filter_lengths = filter_lengths or []
     entries = expand_extensions(entries, extensions or [])
-    total = len(entries)
+    total = len(entries) + len(resume_completed or [])
     completed = 0
     hits = 0
     wildcard_filtered = 0
@@ -437,6 +498,36 @@ async def enumerate_directories(
     print_lock = asyncio.Lock()
     client_timeout = aiohttp.ClientTimeout(total=max(timeout, 0.1))
     queue: asyncio.Queue[str | None] = asyncio.Queue()
+    # Entries finished in a previous (interrupted) run, carried over so the
+    # checkpoint keeps the full picture and stats count the whole scan.
+    completed_entries: list[str] = list(resume_completed or [])
+    last_checkpoint_write = 0.0
+    checkpoint_warned = False
+
+    def _write_checkpoint(finished: bool) -> None:
+        """Persist scan progress; a failed write warns once, never kills
+        the scan — the in-memory scan state is unaffected."""
+        nonlocal last_checkpoint_write, checkpoint_warned
+        if not checkpoint_file:
+            return
+        try:
+            write_checkpoint(
+                checkpoint_file,
+                target=base_url,
+                entries=entries,
+                completed=completed_entries,
+                finished=finished,
+            )
+        except OSError as exc:
+            if not checkpoint_warned:
+                checkpoint_warned = True
+                print(f"\n[!] Could not write checkpoint {checkpoint_file}: {exc}")
+            return
+        last_checkpoint_write = time.time()
+
+    def _maybe_checkpoint() -> None:
+        if checkpoint_file and time.time() - last_checkpoint_write >= checkpoint_every:
+            _write_checkpoint(finished=False)
 
     def render_progress(force: bool = False) -> None:
         nonlocal last_render_time
@@ -489,6 +580,11 @@ async def enumerate_directories(
 
         async with print_lock:
             completed += 1
+            # Track per-entry progress for checkpoints (completion order may
+            # differ from queue order with multiple workers; the set is what
+            # matters for resume).
+            completed_entries.append(entry)
+            _maybe_checkpoint()
             if is_wildcard_match(result, fingerprint):
                 # Soft-404 noise: same status + body size as the probe of a
                 # random nonexistent path. Hidden, but counted separately so
@@ -549,6 +645,7 @@ async def enumerate_directories(
                     f"{fingerprint.status} ({fingerprint.size}B)"
                 )
         worker_count = max(1, threads)
+        _write_checkpoint(finished=False)
         for entry in entries:
             queue.put_nowait(entry)
         for _ in range(worker_count):
@@ -564,11 +661,12 @@ async def enumerate_directories(
                     task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
             raise
+        _write_checkpoint(finished=True)
 
     print()
     return ScanSummary(
         total=total,
-        completed=completed,
+        completed=completed + len(resume_completed or []),
         hits=hits,
         wildcard_filtered=wildcard_filtered,
         fingerprint=fingerprint,

@@ -10,6 +10,8 @@ from .enumerator import (
     DEFAULT_TIMEOUT,
     DEFAULT_USER_AGENT,
     enumerate_directories,
+    expand_extensions,
+    load_checkpoint,
     load_targets,
     load_wordlist,
     normalize_target,
@@ -49,6 +51,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--proxy", help="Proxy URL (e.g. http://127.0.0.1:8080)")
     parser.add_argument("-o", "--output", help="Save discovered hits to a file")
     parser.add_argument("--json", metavar="FILE", help="Save a machine-readable JSON report (hits + stats) to a file")
+    parser.add_argument("--checkpoint", metavar="FILE", help="Write resume checkpoints during the scan (single-target runs)")
+    parser.add_argument("--resume", metavar="FILE", help="Resume an interrupted scan from a checkpoint file (single-target)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
     parser.add_argument("-q", "--quiet", action="store_true", help="Minimal output mode")
     parser.add_argument("-h", "--help", action="store_true", help="Show help")
@@ -79,9 +83,11 @@ def main(argv: list[str] | None = None) -> int:
             base_urls = load_targets(args.targets)
         elif args.url:
             base_urls = [normalize_target(args.url)]
+        elif args.resume:
+            base_urls = []  # resolved from the checkpoint below
         else:
             raise ValueError("A target is required: use -u/--url or --targets FILE")
-        if not base_urls:
+        if not base_urls and not args.resume:
             raise ValueError("The targets file contained no valid targets")
         entries = load_wordlist(args.wordlist)
         if not entries:
@@ -100,6 +106,45 @@ def main(argv: list[str] | None = None) -> int:
     except (ValueError, FileNotFoundError) as exc:
         log.error(f"[bold red]✗[/bold red] {str(exc)}")
         return 2
+
+    resume_completed: list[str] = []
+    if args.checkpoint and len(base_urls) > 1:
+        log.error("[bold red]✗[/bold red] --checkpoint only supports single-target scans, not --targets")
+        return 2
+    if args.resume:
+        if args.targets:
+            log.error("[bold red]✗[/bold red] --resume only supports single-target scans, not --targets")
+            return 2
+        try:
+            checkpoint = load_checkpoint(args.resume)
+        except (ValueError, FileNotFoundError) as exc:
+            log.error(f"[bold red]✗[/bold red] Cannot resume: {exc}")
+            return 2
+        if checkpoint["finished"]:
+            log.error("[bold red]✗[/bold red] Checkpoint scan already finished — nothing to resume")
+            return 2
+        checkpoint_target = checkpoint["target"]
+        if args.url and normalize_target(args.url) != checkpoint_target:
+            log.error("[bold red]✗[/bold red] -u/--url does not match the checkpoint's target")
+            return 2
+        base_urls = [checkpoint_target]
+        # The resumed scan must cover exactly the entries the checkpoint was
+        # written for (same wordlist + extensions); anything else means the
+        # progress record no longer describes this scan.
+        expanded = expand_extensions(entries, extensions)
+        if expanded != checkpoint["entries"]:
+            log.error("[bold red]✗[/bold red] Wordlist/extensions do not match the checkpoint — cannot resume")
+            return 2
+        done = set(checkpoint["completed"])
+        resume_completed = checkpoint["completed"]
+        entries = [entry for entry in expanded if entry not in done]
+        extensions = []
+        if not entries:
+            if not args.quiet:
+                console.print("[dim]All checkpoint entries already scanned — nothing to resume.[/dim]")
+            return 0
+        if not args.quiet:
+            console.print(f"[dim]Resuming from checkpoint: {len(done)} of {len(expanded)} entries already done.[/dim]")
 
     if not args.quiet:
         console.print(LOGO)
@@ -146,6 +191,8 @@ def main(argv: list[str] | None = None) -> int:
                         detect_wildcards=not args.no_wildcard,
                         custom_headers=custom_headers,
                         filter_lengths=filter_lengths,
+                        checkpoint_file=args.checkpoint or args.resume,
+                        resume_completed=resume_completed,
                     )
                 )
             )
