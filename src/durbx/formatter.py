@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
+
 from colorama import Fore, Style, init
 
-from .enumerator import ScanResult, should_show_result
+from .enumerator import ScanResult, ScanSummary, should_show_result
 
 
 init(autoreset=True)
@@ -46,6 +48,42 @@ def plain_result_line(result: ScanResult) -> str:
 def render_plain_results(results: list[ScanResult]) -> str:
     """Plain (uncolored) multi-line rendering of a hit list."""
     return "\n".join(plain_result_line(result) for result in results)
+
+
+def render_json_report(
+    hits_by_target: list[tuple[str, list[ScanResult]]],
+    summaries: list[ScanSummary],
+    duration: float,
+) -> str:
+    """Machine-readable JSON report for pipelines.
+
+    Carries every hit (target, path, URL, status, reason, size) plus an
+    aggregate ``stats`` block — completed/total counts, hit count,
+    wildcard-filtered count, and scan duration — so CI and recon pipelines
+    can consume results without parsing terminal output.
+    """
+    results: list[dict] = []
+    for target, target_hits in hits_by_target:
+        for hit in target_hits:
+            results.append(
+                {
+                    "target": target,
+                    "path": hit.path,
+                    "url": hit.url,
+                    "status_code": hit.status_code,
+                    "reason": hit.reason,
+                    "size": hit.size,
+                }
+            )
+    stats = {
+        "targets": len(hits_by_target),
+        "completed": sum(summary.completed for summary in summaries),
+        "total": sum(summary.total for summary in summaries),
+        "hits": sum(summary.hits for summary in summaries),
+        "wildcard_filtered": sum(summary.wildcard_filtered for summary in summaries),
+        "duration_seconds": round(duration, 2),
+    }
+    return json.dumps({"tool": "DurbX", "stats": stats, "results": results}, indent=2)
 
 
 def render_results(results: list[ScanResult], status_filter: list[int] | None = None, exclude_filter: list[int] | None = None, filter_lengths: list[int] | None = None) -> str:

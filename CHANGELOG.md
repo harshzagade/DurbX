@@ -6,6 +6,12 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--json FILE`: machine-readable final report for pipelines — writes a JSON
+  document with a `stats` block (targets, completed/total counts, hit count,
+  wildcard-filtered count, duration) plus every hit (target, path, URL, status
+  code, reason, size). Works with single-target and `--targets` multi-target
+  runs; an unwritable path fails fast with exit 2.
+  4 new unit tests.
 - `--targets FILE`: scan multiple base URLs from a file, one per line (use
   instead of `-u/--url`, which is no longer required; the two are mutually
   exclusive). Blank lines and `#` comments are skipped, targets are normalized

@@ -19,7 +19,7 @@ from .enumerator import (
     parse_method,
     parse_status_codes,
 )
-from .formatter import format_result, render_plain_results
+from .formatter import format_result, render_json_report, render_plain_results
 from .utils import LOGO, setup_logging, console, print_help
 
 
@@ -48,6 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-wildcard", action="store_true", help="Disable soft-404 wildcard detection")
     parser.add_argument("--proxy", help="Proxy URL (e.g. http://127.0.0.1:8080)")
     parser.add_argument("-o", "--output", help="Save discovered hits to a file")
+    parser.add_argument("--json", metavar="FILE", help="Save a machine-readable JSON report (hits + stats) to a file")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
     parser.add_argument("-q", "--quiet", action="store_true", help="Minimal output mode")
     parser.add_argument("-h", "--help", action="store_true", help="Show help")
@@ -171,6 +172,18 @@ def main(argv: list[str] | None = None) -> int:
             console.print(f"[dim]Saved {len(hits)} hit(s) to {args.output}[/dim]")
 
     duration = time.time() - start_time
+
+    if args.json:
+        try:
+            with open(args.json, "w", encoding="utf-8") as handle:
+                handle.write(render_json_report(hits_by_target, summaries, duration))
+                handle.write("\n")
+        except OSError as exc:
+            log.error(f"[bold red]✗[/bold red] Could not write JSON report: {exc}")
+            return 2
+        if not args.quiet:
+            console.print(f"[dim]Saved JSON report to {args.json}[/dim]")
+
     if not args.quiet:
         total_hits = sum(summary.hits for summary in summaries)
         total_filtered = sum(summary.wildcard_filtered for summary in summaries)
