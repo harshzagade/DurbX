@@ -18,6 +18,7 @@ from .enumerator import (
     parse_extensions,
     parse_filter_lengths,
     parse_headers,
+    parse_match_lengths,
     parse_method,
     parse_status_codes,
 )
@@ -46,6 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--status", help="Show only these codes (e.g. 200,403)")
     parser.add_argument("--exclude", help="Exclude codes (e.g. 404,500)")
     parser.add_argument("--filter-length", help="Hide responses with these body sizes in bytes (e.g. 1234,5678)")
+    parser.add_argument("--match-length", help="Show only responses with these body sizes in bytes (e.g. 1234,5678)")
     parser.add_argument("-a", "--all", action="store_true", help="Show all status codes (except 404)")
     parser.add_argument("--no-wildcard", action="store_true", help="Disable soft-404 wildcard detection")
     parser.add_argument("--proxy", help="Proxy URL (e.g. http://127.0.0.1:8080)")
@@ -95,6 +97,7 @@ def main(argv: list[str] | None = None) -> int:
         status_filter = parse_status_codes(args.status)
         exclude_filter = parse_status_codes(args.exclude)
         filter_lengths = parse_filter_lengths(args.filter_length)
+        match_lengths = parse_match_lengths(args.match_length)
         extensions = parse_extensions(args.extensions)
         if args.delay < 0:
             raise ValueError("--delay must be >= 0")
@@ -191,6 +194,7 @@ def main(argv: list[str] | None = None) -> int:
                         detect_wildcards=not args.no_wildcard,
                         custom_headers=custom_headers,
                         filter_lengths=filter_lengths,
+                        match_lengths=match_lengths,
                         checkpoint_file=args.checkpoint or args.resume,
                         resume_completed=resume_completed,
                     )

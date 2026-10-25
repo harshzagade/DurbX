@@ -206,6 +206,16 @@ def parse_status_codes(raw_value: str | None) -> list[int]:
     return codes
 
 
+def parse_match_lengths(raw_value: str | None) -> list[int]:
+    """Parse a comma-separated list of body sizes for ``--match-length``.
+
+    Same validation as ``parse_filter_lengths`` (non-integer or negative
+    values fail fast) — the two flags share a size-list grammar, only the
+    polarity differs: match-length is an allowlist, filter-length a denylist.
+    """
+    return parse_filter_lengths(raw_value)
+
+
 def parse_filter_lengths(raw_value: str | None) -> list[int]:
     """Parse a comma-separated list of response body sizes into ints.
 
@@ -437,10 +447,12 @@ def should_show_result(
     exclude_filter: list[int] | None = None,
     all_codes: bool = False,
     filter_lengths: list[int] | None = None,
+    match_lengths: list[int] | None = None,
 ) -> bool:
     status_filter = status_filter or []
     exclude_filter = exclude_filter or []
     filter_lengths = filter_lengths or []
+    match_lengths = match_lengths or []
     if result.status_code is None:
         return False
     if status_filter and result.status_code not in status_filter:
@@ -451,6 +463,12 @@ def should_show_result(
     # one of the given sizes. Checked before the --all default rule so an
     # explicit user filter always wins.
     if filter_lengths and result.size in filter_lengths:
+        return False
+    # --match-length (inverse of --filter-length): when given, show ONLY
+    # responses whose body size is in the list, so a known interesting size
+    # can be zeroed in on. Also checked before the --all default rule, and
+    # combined (AND) with the status filters above.
+    if match_lengths and result.size not in match_lengths:
         return False
     # If all_codes flag is set, show everything except 404
     if all_codes:
@@ -480,6 +498,7 @@ async def enumerate_directories(
     detect_wildcards: bool = True,
     custom_headers: dict[str, str] | None = None,
     filter_lengths: list[int] | None = None,
+    match_lengths: list[int] | None = None,
     checkpoint_file: str | None = None,
     checkpoint_every: float = DEFAULT_CHECKPOINT_EVERY,
     resume_completed: list[str] | None = None,
@@ -487,6 +506,7 @@ async def enumerate_directories(
     status_filter = status_filter or []
     exclude_filter = exclude_filter or []
     filter_lengths = filter_lengths or []
+    match_lengths = match_lengths or []
     entries = expand_extensions(entries, extensions or [])
     total = len(entries) + len(resume_completed or [])
     completed = 0
@@ -590,7 +610,7 @@ async def enumerate_directories(
                 # random nonexistent path. Hidden, but counted separately so
                 # the user can see the filter did something.
                 wildcard_filtered += 1
-            elif should_show_result(result, status_filter=status_filter, exclude_filter=exclude_filter, all_codes=all_codes, filter_lengths=filter_lengths):
+            elif should_show_result(result, status_filter=status_filter, exclude_filter=exclude_filter, all_codes=all_codes, filter_lengths=filter_lengths, match_lengths=match_lengths):
                 hits += 1
                 hit = True
                 print("\r" + " " * 100 + "\r", end="")

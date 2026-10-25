@@ -43,6 +43,7 @@ Real terminal captures from an actual run (local test server — no real target 
 - **Wildcard detection** — before the scan, a random nonexistent path is probed; responses matching its status + body size (soft-404 catch-all pages) are auto-filtered, with a count in the summary (`--no-wildcard` disables)
 - **Multi-target scans** — `--targets FILE` scans several base URLs from one file (one per line, `#` comments and blanks skipped, targets normalized and deduped); each target gets its own wildcard probe, and `-o` output groups hits under `# Target: <url>` section headers
 - **Body-size filtering** — `--filter-length N` (gobuster-style) hides responses whose body size equals N, for cutting through identical-size noise; comma-separated for several sizes, applies even under `--all`
+- **Body-size matching** — `--match-length N` is the inverse: show ONLY responses whose body size equals N, for zeroing in on a known interesting size; comma-separated, combines (AND) with the status filters
 - **JSON report** — `--json report.json` writes a machine-readable final report (every hit plus an aggregate `stats` block: completed/total, hit count, wildcard-filtered count, duration) for CI and recon pipelines
 - **Resume support** — `--checkpoint cp.json` writes progress checkpoints during a scan (temp-file + rename, so a kill never corrupts it); `--resume cp.json` continues an interrupted scan exactly where it stopped, skipping already-scanned entries. Single-target only; the checkpoint refuses mismatched targets/wordlists and already-finished scans
 
@@ -201,6 +202,7 @@ FILTERS
   --status                Show only these codes (default: 200)
   --exclude               Exclude these codes (e.g. 404,500)
   --filter-length         Hide responses with these body sizes (e.g. 1234,5678)
+  --match-length          Show only responses with these body sizes (e.g. 1234,5678)
   --timeout               Request timeout in seconds (default: 3.0)
   --retries               Retry 429s with backoff (default: 3; 0 disables)
   --no-wildcard           Disable soft-404 wildcard detection

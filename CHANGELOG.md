@@ -6,6 +6,13 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--match-length N`: inverse of `--filter-length` — show ONLY responses whose
+  body size equals N (comma-separated for several sizes), for zeroing in on a
+  known interesting size. `parse_match_lengths()` shares the size-list grammar
+  and fail-fast validation of `parse_filter_lengths()`; the allowlist is
+  checked before the `--all` default rule and combined (AND) with the status
+  filters and `--filter-length`; threaded through `enumerate_directories()`
+  and `render_results()`. 8 new unit tests.
 - `--checkpoint FILE` + `--resume FILE`: resume support for interrupted
   scans (single-target only). `--checkpoint` writes progress checkpoints
   (target, full expanded entry list, completed entries, finished flag) at scan

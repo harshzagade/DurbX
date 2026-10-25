@@ -86,13 +86,14 @@ def render_json_report(
     return json.dumps({"tool": "DurbX", "stats": stats, "results": results}, indent=2)
 
 
-def render_results(results: list[ScanResult], status_filter: list[int] | None = None, exclude_filter: list[int] | None = None, filter_lengths: list[int] | None = None) -> str:
+def render_results(results: list[ScanResult], status_filter: list[int] | None = None, exclude_filter: list[int] | None = None, filter_lengths: list[int] | None = None, match_lengths: list[int] | None = None) -> str:
     status_filter = status_filter or []
     exclude_filter = exclude_filter or []
     filter_lengths = filter_lengths or []
+    match_lengths = match_lengths or []
     visible = []
     for result in results:
-        if not should_show_result(result, status_filter=status_filter, exclude_filter=exclude_filter, filter_lengths=filter_lengths):
+        if not should_show_result(result, status_filter=status_filter, exclude_filter=exclude_filter, filter_lengths=filter_lengths, match_lengths=match_lengths):
             continue
         visible.append(result)
 
