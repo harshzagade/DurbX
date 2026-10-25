@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import re
 import secrets
+import sys
 import time
 from typing import Callable
 from urllib.parse import quote
@@ -76,13 +77,16 @@ def normalize_target(target: str) -> str:
     return urlunparse((parsed.scheme, parsed.netloc, normalized_path, "", "", ""))
 
 
-def _load_wordlist_file(source: Path) -> list[str]:
-    if not source.is_file():
-        raise FileNotFoundError(f"Wordlist not found: {source}")
+def parse_wordlist_lines(lines) -> list[str]:
+    """Normalize raw wordlist lines into candidate entries.
 
+    Strips whitespace and leading slashes, skips blanks and ``#`` comments,
+    and drops duplicates (first occurrence wins, order preserved). Shared
+    by file and stdin loading so both sources behave identically.
+    """
     entries: list[str] = []
     seen: set[str] = set()
-    for raw_line in source.read_text(encoding="utf-8").splitlines():
+    for raw_line in lines:
         entry = raw_line.strip().lstrip("/")
         if not entry or entry.startswith("#"):
             continue
@@ -92,7 +96,25 @@ def _load_wordlist_file(source: Path) -> list[str]:
     return entries
 
 
+def _load_wordlist_file(source: Path) -> list[str]:
+    if not source.is_file():
+        raise FileNotFoundError(f"Wordlist not found: {source}")
+    return parse_wordlist_lines(source.read_text(encoding="utf-8").splitlines())
+
+
+def load_stdin_entries() -> list[str]:
+    """Read candidate paths from stdin, one per line.
+
+    Same normalization as wordlist files (blanks, ``#`` comments, duplicates
+    dropped), so ``other-tool | durbx -u ... --stdin`` pipelines behave
+    exactly like a wordlist file would.
+    """
+    return parse_wordlist_lines(sys.stdin.read().splitlines())
+
+
 def load_wordlist(path: str) -> list[str]:
+    if path == "-":
+        return load_stdin_entries()
     sources = [Path(path).expanduser().resolve()]
     entries: list[str] = []
     seen: set[str] = set()

@@ -6,6 +6,13 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--stdin` path input: read candidate paths from stdin instead of a wordlist
+  file, so DurbX pipes cleanly from other recon tools
+  (`other-tool | durbx -u example.com --stdin`); `-w -` is an alias for the
+  same source. Shared `parse_wordlist_lines()` normalization means stdin and
+  file inputs behave identically (blanks, `#` comments, duplicates dropped);
+  `-w/--wordlist` is no longer argparse-required, and `--stdin` combined with
+  a real `-w` file fails fast with exit 2. 9 new unit tests.
 - `--match-length N`: inverse of `--filter-length` — show ONLY responses whose
   body size equals N (comma-separated for several sizes), for zeroing in on a
   known interesting size. `parse_match_lengths()` shares the size-list grammar

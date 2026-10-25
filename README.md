@@ -44,6 +44,7 @@ Real terminal captures from an actual run (local test server — no real target 
 - **Multi-target scans** — `--targets FILE` scans several base URLs from one file (one per line, `#` comments and blanks skipped, targets normalized and deduped); each target gets its own wildcard probe, and `-o` output groups hits under `# Target: <url>` section headers
 - **Body-size filtering** — `--filter-length N` (gobuster-style) hides responses whose body size equals N, for cutting through identical-size noise; comma-separated for several sizes, applies even under `--all`
 - **Body-size matching** — `--match-length N` is the inverse: show ONLY responses whose body size equals N, for zeroing in on a known interesting size; comma-separated, combines (AND) with the status filters
+- **Stdin path input** — `--stdin` (or `-w -`) reads candidate paths from stdin instead of a wordlist file, so DurbX pipes cleanly from other recon tools (`other-tool | durbx -u example.com --stdin`); same normalization as wordlist files (blanks, `#` comments, duplicates dropped)
 - **JSON report** — `--json report.json` writes a machine-readable final report (every hit plus an aggregate `stats` block: completed/total, hit count, wildcard-filtered count, duration) for CI and recon pipelines
 - **Resume support** — `--checkpoint cp.json` writes progress checkpoints during a scan (temp-file + rename, so a kill never corrupts it); `--resume cp.json` continues an interrupted scan exactly where it stopped, skipping already-scanned entries. Single-target only; the checkpoint refuses mismatched targets/wordlists and already-finished scans
 
@@ -189,7 +190,8 @@ USAGE
 CORE SETTINGS
   -u, --url               Target URL (e.g. https://example.com)
   --targets               Target list file (one URL per line; use instead of -u)
-  -w, --wordlist          Path to wordlist file
+  -w, --wordlist          Path to wordlist file (use - for stdin)
+  --stdin                 Read candidate paths from stdin (instead of -w)
   -x, --extensions        Append extensions to each word (e.g. php,html)
   -t, --threads           Concurrent threads (default: 50)
   --delay                 Pause between requests per worker (default: 0)

@@ -12,6 +12,7 @@ from .enumerator import (
     enumerate_directories,
     expand_extensions,
     load_checkpoint,
+    load_stdin_entries,
     load_targets,
     load_wordlist,
     normalize_target,
@@ -34,7 +35,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("-u", "--url", help="Target URL (use --targets for many)")
     parser.add_argument("--targets", help="File with target URLs, one per line (use instead of -u)")
-    parser.add_argument("-w", "--wordlist", required=True, help="Wordlist file to use")
+    parser.add_argument("-w", "--wordlist", help="Wordlist file to use (use - for stdin)")
+    parser.add_argument("--stdin", action="store_true", help="Read candidate paths from stdin instead of a wordlist file")
     parser.add_argument("-x", "--extensions", help="Append file extensions to each word (e.g. php,html)")
     parser.add_argument("-t", "--threads", type=int, default=DEFAULT_THREADS, help=f"Threads (default: {DEFAULT_THREADS})")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT, help=f"HTTP timeout in seconds (default: {DEFAULT_TIMEOUT})")
@@ -91,7 +93,14 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("A target is required: use -u/--url or --targets FILE")
         if not base_urls and not args.resume:
             raise ValueError("The targets file contained no valid targets")
-        entries = load_wordlist(args.wordlist)
+        if args.stdin and args.wordlist and args.wordlist != "-":
+            raise ValueError("Use either --stdin or -w/--wordlist, not both")
+        if args.stdin or args.wordlist == "-":
+            entries = load_stdin_entries()
+        elif args.wordlist:
+            entries = load_wordlist(args.wordlist)
+        else:
+            raise ValueError("A wordlist is required: use -w/--wordlist FILE, -w -, or --stdin")
         if not entries:
             raise ValueError("No wordlist entries were loaded.")
         status_filter = parse_status_codes(args.status)
@@ -149,13 +158,14 @@ def main(argv: list[str] | None = None) -> int:
         if not args.quiet:
             console.print(f"[dim]Resuming from checkpoint: {len(done)} of {len(expanded)} entries already done.[/dim]")
 
+    wordlist_label = "stdin" if (args.stdin or args.wordlist == "-") else args.wordlist
     if not args.quiet:
         console.print(LOGO)
         console.print()
         if len(base_urls) == 1:
-            console.print(f"[dim]Target:[/dim] [bold white]{base_urls[0]}[/bold white] [dim]|[/dim] [dim]Threads:[/dim] [white]{args.threads}[/white] [dim]|[/dim] [dim]Wordlist:[/dim] [white]{args.wordlist}[/white]\n")
+            console.print(f"[dim]Target:[/dim] [bold white]{base_urls[0]}[/bold white] [dim]|[/dim] [dim]Threads:[/dim] [white]{args.threads}[/white] [dim]|[/dim] [dim]Wordlist:[/dim] [white]{wordlist_label}[/white]\n")
         else:
-            console.print(f"[dim]Targets:[/dim] [bold white]{len(base_urls)}[/bold white] [dim]from[/dim] [white]{args.targets}[/white] [dim]|[/dim] [dim]Threads:[/dim] [white]{args.threads}[/white] [dim]|[/dim] [dim]Wordlist:[/dim] [white]{args.wordlist}[/white]\n")
+            console.print(f"[dim]Targets:[/dim] [bold white]{len(base_urls)}[/bold white] [dim]from[/dim] [white]{args.targets}[/white] [dim]|[/dim] [dim]Threads:[/dim] [white]{args.threads}[/white] [dim]|[/dim] [dim]Wordlist:[/dim] [white]{wordlist_label}[/white]\n")
 
     start_time = time.time()
 

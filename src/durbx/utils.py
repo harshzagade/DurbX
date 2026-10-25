@@ -52,7 +52,8 @@ def print_help():
         "CORE SETTINGS": [
             ("-u, --url", "Target URL [dim](e.g. https://example.com)[/dim]"),
             ("--targets", "Target list file [dim](one URL per line; use instead of -u)[/dim]"),
-            ("-w, --wordlist", "Path to wordlist file"),
+            ("-w, --wordlist", "Path to wordlist file [dim](use - for stdin)[/dim]"),
+            ("--stdin", "Read candidate paths from stdin [dim](instead of a wordlist file)[/dim]"),
             ("-x, --extensions", "Append extensions to each word [dim](e.g. php,html)[/dim]"),
             ("-t, --threads", "Concurrent threads [dim](default: 50)[/dim]"),
             ("--delay", "Pause between requests per worker [dim](default: 0)[/dim]"),
