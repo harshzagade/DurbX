@@ -36,7 +36,7 @@ Real terminal captures from an actual run (local test server — no real target 
 - **Output modes** — verbose logging (`-v`) for debugging, quiet mode (`-q`) that suppresses the banner and summary lines for cleaner piped output, `-o/--output` to save hits to a file
 - **Graceful errors** — connection errors and timeouts are caught per-request; `Ctrl+C` exits cleanly
 - **Rate-limit handling** — backs off and retries HTTP 429 responses (exponential backoff, honors the server's `Retry-After` header); tune with `--retries`
-- **Stealth controls** — `--delay` pauses each worker between requests for slower, quieter scans on rate-limited targets; `--user-agent` overrides the default `DurbX/0.1` User-Agent header
+- **Stealth controls** — `--delay` pauses each worker between requests for slower, quieter scans on rate-limited targets; `--rate-limit RPS` caps the global request rate across all workers via a shared token bucket, for targets with strict server-side limits; `--user-agent` overrides the default `DurbX/0.1` User-Agent header
 - **HTTP method choice** — `-m/--method GET|HEAD|POST` swaps the request verb instead of hard-coding GET (HEAD is lighter on big targets; POST catches methods-only endpoints)
 - **Redirect following** — `--follow-redirects` follows 3xx responses instead of reporting the redirect itself, so results reflect the final status (the soft-404 probe follows the same policy so filtering stays consistent)
 - **Custom headers** — repeatable `-H/--header "Name: value"` sends custom HTTP headers (auth cookies, tokens) with every request; a custom `User-Agent` header overrides `--user-agent`

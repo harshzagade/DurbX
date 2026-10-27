@@ -377,6 +377,80 @@ def retry_delay(attempt: int, retry_after: float | None = None) -> float:
     return RETRY_BACKOFF_BASE * (2 ** max(0, attempt))
 
 
+def parse_rate_limit(raw_value: float | None) -> float | None:
+    """Validate a ``--rate-limit`` value (requests per second).
+
+    ``None`` disables throttling. A non-positive rate can never pace a
+    scan, so it fails fast instead of silently meaning "unlimited".
+    """
+    if raw_value is None:
+        return None
+    rate = float(raw_value)
+    if rate <= 0:
+        raise ValueError("--rate-limit must be > 0")
+    return rate
+
+
+class RateLimiter:
+    """Async token bucket shared across all scan workers.
+
+    The bucket holds up to one second's worth of tokens (at least one),
+    refills continuously at ``rate_per_second``, and each request spends
+    one token. When the bucket is empty, ``acquire()`` sleeps until a
+    token is available. Unlike the per-worker ``--delay`` pause, this
+    caps the *global* request rate, which is what strict server-side
+    rate limits actually enforce. The lock is held while waiting so
+    concurrent workers cannot all slip through on the same token.
+
+    ``clock``/``sleep`` are injectable for tests; both default to the
+    real ``time.monotonic``/``asyncio.sleep`` at call time.
+    """
+
+    def __init__(
+        self,
+        rate_per_second: float,
+        *,
+        clock=None,
+        sleep=None,
+    ) -> None:
+        rate = float(rate_per_second)
+        if rate <= 0:
+            raise ValueError("--rate-limit must be > 0")
+        self.rate = rate
+        self.capacity = max(1.0, rate)
+        self._tokens = self.capacity
+        self._last: float | None = None
+        self._lock = asyncio.Lock()
+        self._clock = clock
+        self._sleep = sleep
+
+    def _now(self) -> float:
+        return (self._clock or time.monotonic)()
+
+    async def _do_sleep(self, seconds: float) -> None:
+        await (self._sleep or asyncio.sleep)(seconds)
+
+    async def acquire(self) -> None:
+        async with self._lock:
+            now = self._now()
+            if self._last is None:
+                self._last = now
+            else:
+                refill = max(0.0, now - self._last) * self.rate
+                self._tokens = min(self.capacity, self._tokens + refill)
+                self._last = now
+            if self._tokens >= 1.0:
+                self._tokens -= 1.0
+                return
+            wait = (1.0 - self._tokens) / self.rate
+            await self._do_sleep(wait)
+            # The wait just bought exactly one token, which this
+            # acquisition spends; the clock is re-read so a real clock
+            # and a frozen test clock both stay consistent.
+            self._tokens = 0.0
+            self._last = self._now()
+
+
 async def fetch_with_retry(
     session,
     url: str,
@@ -524,6 +598,7 @@ async def enumerate_directories(
     checkpoint_file: str | None = None,
     checkpoint_every: float = DEFAULT_CHECKPOINT_EVERY,
     resume_completed: list[str] | None = None,
+    rate_limit: float | None = None,
 ) -> ScanSummary:
     status_filter = status_filter or []
     exclude_filter = exclude_filter or []
@@ -643,6 +718,8 @@ async def enumerate_directories(
             render_progress(force=completed == total)
         return result
 
+    limiter = RateLimiter(rate_limit) if rate_limit is not None else None
+
     async def worker(session: aiohttp.ClientSession) -> None:
         while True:
             entry = await queue.get()
@@ -650,6 +727,10 @@ async def enumerate_directories(
                 queue.task_done()
                 break
             try:
+                if limiter is not None:
+                    # Global throttle: one token per request, shared by
+                    # every worker, on top of the per-worker --delay.
+                    await limiter.acquire()
                 await scan(session, entry)
                 if delay > 0:
                     # Per-worker pause between requests: keeps request timing

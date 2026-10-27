@@ -6,6 +6,11 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--rate-limit RPS`: global requests-per-second throttle via a token bucket
+  shared across all workers (`RateLimiter` in enumerator.py; bucket holds one
+  second's worth of tokens, refills continuously). Complements the per-worker
+  `--delay` pause for targets with strict global rate limits; non-positive
+  values fail fast with exit 2. 6 new unit tests.
 - `--stdin` path input: read candidate paths from stdin instead of a wordlist
   file, so DurbX pipes cleanly from other recon tools
   (`other-tool | durbx -u example.com --stdin`); `-w -` is an alias for the

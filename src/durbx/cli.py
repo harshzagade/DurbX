@@ -21,6 +21,7 @@ from .enumerator import (
     parse_headers,
     parse_match_lengths,
     parse_method,
+    parse_rate_limit,
     parse_status_codes,
 )
 from .formatter import format_result, render_json_report, render_plain_results
@@ -42,6 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT, help=f"HTTP timeout in seconds (default: {DEFAULT_TIMEOUT})")
     parser.add_argument("--retries", type=int, default=DEFAULT_MAX_RETRIES, help=f"Retries on HTTP 429 with backoff (default: {DEFAULT_MAX_RETRIES}; 0 disables)")
     parser.add_argument("--delay", type=float, default=DEFAULT_DELAY, help=f"Pause in seconds between requests per worker (default: {DEFAULT_DELAY}; for stealthy/rate-limited targets)")
+    parser.add_argument("--rate-limit", type=float, default=None, help="Global requests-per-second cap shared across workers (e.g. 10; complements --delay)")
     parser.add_argument("--user-agent", default=DEFAULT_USER_AGENT, help=f"Custom User-Agent header (default: {DEFAULT_USER_AGENT})")
     parser.add_argument("-H", "--header", action="append", default=None, help="Custom HTTP header, e.g. -H 'Authorization: Bearer abc' (repeatable; overrides --user-agent)")
     parser.add_argument("-m", "--method", default=DEFAULT_METHOD, help=f"HTTP method for requests (default: {DEFAULT_METHOD}; GET/HEAD/POST)")
@@ -110,6 +112,7 @@ def main(argv: list[str] | None = None) -> int:
         extensions = parse_extensions(args.extensions)
         if args.delay < 0:
             raise ValueError("--delay must be >= 0")
+        rate_limit = parse_rate_limit(args.rate_limit)
         user_agent = args.user_agent
         if not user_agent or not user_agent.strip():
             raise ValueError("--user-agent must not be empty")
@@ -207,6 +210,7 @@ def main(argv: list[str] | None = None) -> int:
                         match_lengths=match_lengths,
                         checkpoint_file=args.checkpoint or args.resume,
                         resume_completed=resume_completed,
+                        rate_limit=rate_limit,
                     )
                 )
             )
