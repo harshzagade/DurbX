@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 import json
 from pathlib import Path
 import re
@@ -347,10 +349,12 @@ def expand_extensions(entries: list[str], extensions: list[str]) -> list[str]:
 def parse_retry_after(raw_value: str | None) -> float | None:
     """Parse a ``Retry-After`` header value into seconds.
 
-    Only the delta-seconds form is honored; the HTTP-date form is ignored.
-    The result is clamped to ``MAX_RETRY_AFTER_SECONDS`` so a hostile or
-    misconfigured server cannot stall the scan. Returns ``None`` when the
-    header is absent, empty, negative, or unparseable.
+    Both forms from RFC 9110 are honored: delta-seconds, and an HTTP-date
+    (converted to "seconds from now"; a date already in the past means
+    retry immediately, 0.0). The result is clamped to
+    ``MAX_RETRY_AFTER_SECONDS`` so a hostile or misconfigured server
+    cannot stall the scan. Returns ``None`` when the header is absent,
+    empty, negative, or unparseable.
     """
     if raw_value is None:
         return None
@@ -360,10 +364,24 @@ def parse_retry_after(raw_value: str | None) -> float | None:
     try:
         seconds = float(value_text)
     except ValueError:
+        seconds = None
+    if seconds is not None:
+        if seconds < 0:
+            return None
+        return min(seconds, MAX_RETRY_AFTER_SECONDS)
+    try:
+        retry_at = parsedate_to_datetime(value_text)
+    except (TypeError, ValueError, OverflowError):
         return None
-    if seconds < 0:
+    if retry_at is None:
         return None
-    return min(seconds, MAX_RETRY_AFTER_SECONDS)
+    if retry_at.tzinfo is None:
+        # A bare HTTP-date has no zone; RFC 9110 dates are GMT.
+        retry_at = retry_at.replace(tzinfo=timezone.utc)
+    delta = (retry_at - datetime.now(timezone.utc)).total_seconds()
+    if delta <= 0:
+        return 0.0
+    return min(delta, MAX_RETRY_AFTER_SECONDS)
 
 
 def retry_delay(attempt: int, retry_after: float | None = None) -> float:

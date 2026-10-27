@@ -123,8 +123,6 @@ def test_parse_retry_after_invalid_or_missing() -> None:
     assert parse_retry_after("   ") is None
     assert parse_retry_after("soon") is None
     assert parse_retry_after("-3") is None
-    # HTTP-date form is intentionally not honored
-    assert parse_retry_after("Wed, 21 Oct 2026 07:28:00 GMT") is None
 
 
 def test_retry_delay_exponential_backoff() -> None:

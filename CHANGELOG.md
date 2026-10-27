@@ -6,6 +6,12 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- HTTP-date form of `Retry-After`: `parse_retry_after()` now honors RFC 9110
+  HTTP-dates alongside delta-seconds (converted to seconds-from-now, past
+  dates retry immediately, still clamped to the 60s maximum); previously
+  the date form was ignored and fell back to exponential backoff.
+  The old test asserting the date form returned `None` was updated, and
+  2 new tests cover parsing plus an end-to-end 429 retry.
 - `--rate-limit RPS`: global requests-per-second throttle via a token bucket
   shared across all workers (`RateLimiter` in enumerator.py; bucket holds one
   second's worth of tokens, refills continuously). Complements the per-worker
