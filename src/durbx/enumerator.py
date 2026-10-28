@@ -217,15 +217,44 @@ def load_checkpoint(path: str) -> dict:
 
 
 def parse_status_codes(raw_value: str | None) -> list[int]:
+    """Parse a comma-separated status-code list into ints.
+
+    Single codes (``200``) and inclusive ranges (``200-299``) may be
+    mixed, e.g. ``200,301,500-599``. Ranges expand in order and the
+    result is deduplicated (first occurrence wins), so ``--status`` /
+    ``--exclude`` membership checks stay simple. Malformed tokens,
+    reversed ranges (``299-200``), and endpoints outside 100-599 fail
+    fast with ``ValueError`` instead of silently matching nothing.
+    """
     if not raw_value:
         return []
     codes: list[int] = []
+    seen: set[int] = set()
+
+    def _add(code: int) -> None:
+        if code not in seen:
+            seen.add(code)
+            codes.append(code)
+
     for chunk in raw_value.split(","):
         value = chunk.strip()
         if not value:
             continue
+        if "-" in value:
+            parts = [part.strip() for part in value.split("-")]
+            if len(parts) != 2:
+                raise ValueError(f"Invalid status code range: {value}")
+            try:
+                low, high = int(parts[0]), int(parts[1])
+            except ValueError as exc:
+                raise ValueError(f"Invalid status code range: {value}") from exc
+            if low > high or low < 100 or high > 599:
+                raise ValueError(f"Invalid status code range: {value}")
+            for code in range(low, high + 1):
+                _add(code)
+            continue
         try:
-            codes.append(int(value))
+            _add(int(value))
         except ValueError as exc:
             raise ValueError(f"Invalid status code: {value}") from exc
     return codes

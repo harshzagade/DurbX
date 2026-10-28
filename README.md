@@ -27,7 +27,7 @@ Real terminal captures from an actual run (local test server — no real target 
 ## ✨ Features
 
 - **Async engine** — built on `aiohttp` + `asyncio`; one worker per thread-slot with a bounded `TCPConnector` pool, so concurrency never exhausts resources
-- **Smart filtering** — shows only `200 OK` by default; `--all` shows everything except 404; `--status` allowlist and `--exclude` denylist for precise control
+- **Smart filtering** — shows only `200 OK` by default; `--all` shows everything except 404; `--status` allowlist and `--exclude` denylist for precise control, both accepting inclusive ranges (`--status 200-299`, `--exclude 500-599`)
 - **Fast feedback** — real-time progress bar with ETA, color-coded results, per-request timeout (default 3s)
 - **Wordlist handling** — strips whitespace and leading slashes, drops duplicates, skips `#` comments and blank lines
 - **Extension probing** — `-x php,html` requests each word plus its extension variants (e.g. `/admin`, `/admin.php`, `/admin.html`)

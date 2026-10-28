@@ -12,6 +12,11 @@ All notable changes to DurbX are documented here. The format follows
   hits that needed 429 retries show `(retried N)` in terminal output,
   `-o` plain output, and the `--json` report (`attempts` field), so
   rate-limit pressure is visible instead of silent. 4 new unit tests.
+- Status-code ranges in `--status`/`--exclude`: `parse_status_codes()`
+  now accepts inclusive ranges alongside single codes
+  (e.g. `--status 200,301,500-599`), expanded in order and deduplicated;
+  malformed tokens, reversed ranges, and endpoints outside 100-599 fail
+  fast with exit 2. 7 new unit tests.
 - HTTP-date form of `Retry-After`: `parse_retry_after()` now honors RFC 9110
   HTTP-dates alongside delta-seconds (converted to seconds-from-now, past
   dates retry immediately, still clamped to the 60s maximum); previously
