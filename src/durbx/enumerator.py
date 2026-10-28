@@ -37,6 +37,7 @@ class ScanResult:
     url: str
     reason: str
     size: int
+    attempts: int = 1
 
 
 @dataclass(frozen=True)
@@ -711,6 +712,7 @@ async def enumerate_directories(
                 url=target_url,
                 reason=outcome.reason,
                 size=outcome.content_length,
+                attempts=outcome.attempts,
             )
 
         async with print_lock:

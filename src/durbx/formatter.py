@@ -26,20 +26,33 @@ def _color_for_status(status_code: int | None) -> str:
     return Fore.CYAN
 
 
+def _retry_note(result: ScanResult) -> str:
+    """`` (retried N)`` suffix for hits that needed 429 retries.
+
+    ``attempts`` counts every request (first try + retries), so the
+    number of retries is ``attempts - 1``; a single-attempt hit gets no
+    note, keeping normal output byte-identical to before.
+    """
+    if result.attempts > 1:
+        return f" (retried {result.attempts - 1})"
+    return ""
+
+
 def format_result(result: ScanResult) -> str:
     status = str(result.status_code) if result.status_code is not None else "-"
     size = f"{result.size}B"
     color = _color_for_status(result.status_code)
+    line = f"{result.path:<20} {status:<5} {size:<10}{_retry_note(result)}"
     if result.status_code in {200, 301, 302}:
-        return color + f"{result.path:<20} {status:<5} {size:<10} -> {result.url}" + Style.RESET_ALL
-    return color + f"{result.path:<20} {status:<5} {size:<10}" + Style.RESET_ALL
+        line += f" -> {result.url}"
+    return color + line + Style.RESET_ALL
 
 
 def plain_result_line(result: ScanResult) -> str:
     """Single-line hit without ANSI colors, for output files and piping."""
     status = str(result.status_code) if result.status_code is not None else "-"
     size = f"{result.size}B"
-    line = f"{result.path:<20} {status:<5} {size:<10}"
+    line = f"{result.path:<20} {status:<5} {size:<10}{_retry_note(result)}"
     if result.status_code in {200, 301, 302}:
         line += f" -> {result.url}"
     return line
@@ -57,7 +70,8 @@ def render_json_report(
 ) -> str:
     """Machine-readable JSON report for pipelines.
 
-    Carries every hit (target, path, URL, status, reason, size) plus an
+    Carries every hit (target, path, URL, status, reason, size, request
+    attempts) plus an
     aggregate ``stats`` block — completed/total counts, hit count,
     wildcard-filtered count, and scan duration — so CI and recon pipelines
     can consume results without parsing terminal output.
@@ -73,6 +87,7 @@ def render_json_report(
                     "status_code": hit.status_code,
                     "reason": hit.reason,
                     "size": hit.size,
+                    "attempts": hit.attempts,
                 }
             )
     stats = {

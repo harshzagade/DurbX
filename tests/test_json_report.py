@@ -49,6 +49,7 @@ def test_render_json_report_structure() -> None:
         "status_code": 200,
         "reason": "OK",
         "size": 1234,
+        "attempts": 1,
     }
 
 

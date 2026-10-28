@@ -6,6 +6,12 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Retry attempts recorded on `ScanResult`: `fetch_with_retry()` already
+  counted attempts, but `scan()` dropped them — hits now carry
+  `attempts` (default 1, so existing constructions are unaffected) and
+  hits that needed 429 retries show `(retried N)` in terminal output,
+  `-o` plain output, and the `--json` report (`attempts` field), so
+  rate-limit pressure is visible instead of silent. 4 new unit tests.
 - HTTP-date form of `Retry-After`: `parse_retry_after()` now honors RFC 9110
   HTTP-dates alongside delta-seconds (converted to seconds-from-now, past
   dates retry immediately, still clamped to the 60s maximum); previously
