@@ -6,6 +6,11 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--append` for `-o/--output`: append hits to the output file instead of
+  overwriting it, for accumulating results across multiple runs.
+  `--append` without `-o` fails fast with exit 2, and appending to a file
+  whose last line has no trailing newline inserts a separator first so
+  the first new hit never glues onto the previous line. 5 new unit tests.
 - Retry attempts recorded on `ScanResult`: `fetch_with_retry()` already
   counted attempts, but `scan()` dropped them — hits now carry
   `attempts` (default 1, so existing constructions are unaffected) and

@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import sys
 import time
+from pathlib import Path
 from .enumerator import (
     DEFAULT_DELAY,
     DEFAULT_MAX_RETRIES,
@@ -56,6 +57,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-wildcard", action="store_true", help="Disable soft-404 wildcard detection")
     parser.add_argument("--proxy", help="Proxy URL (e.g. http://127.0.0.1:8080)")
     parser.add_argument("-o", "--output", help="Save discovered hits to a file")
+    parser.add_argument("--append", action="store_true", help="Append hits to the -o/--output file instead of overwriting it (requires -o)")
     parser.add_argument("--json", metavar="FILE", help="Save a machine-readable JSON report (hits + stats) to a file")
     parser.add_argument("--checkpoint", metavar="FILE", help="Write resume checkpoints during the scan (single-target runs)")
     parser.add_argument("--resume", metavar="FILE", help="Resume an interrupted scan from a checkpoint file (single-target)")
@@ -112,6 +114,8 @@ def main(argv: list[str] | None = None) -> int:
         extensions = parse_extensions(args.extensions)
         if args.delay < 0:
             raise ValueError("--delay must be >= 0")
+        if args.append and not args.output:
+            raise ValueError("--append requires -o/--output")
         rate_limit = parse_rate_limit(args.rate_limit)
         user_agent = args.user_agent
         if not user_agent or not user_agent.strip():
@@ -221,7 +225,16 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.output:
         try:
-            with open(args.output, "w", encoding="utf-8") as handle:
+            needs_separator = False
+            if args.append:
+                # Appending to a file whose last line has no trailing
+                # newline would glue the first new hit onto that line.
+                existing = Path(args.output)
+                if existing.is_file() and existing.stat().st_size > 0:
+                    needs_separator = existing.read_bytes()[-1:] != b"\n"
+            with open(args.output, "a" if args.append else "w", encoding="utf-8") as handle:
+                if needs_separator:
+                    handle.write("\n")
                 for base_url, target_hits in hits_by_target:
                     if len(base_urls) > 1:
                         handle.write(f"# Target: {base_url}\n")
@@ -234,7 +247,8 @@ def main(argv: list[str] | None = None) -> int:
             log.error(f"[bold red]✗[/bold red] Could not write output file: {exc}")
             return 2
         if not args.quiet:
-            console.print(f"[dim]Saved {len(hits)} hit(s) to {args.output}[/dim]")
+            verb = "Appended" if args.append else "Saved"
+            console.print(f"[dim]{verb} {len(hits)} hit(s) to {args.output}[/dim]")
 
     duration = time.time() - start_time
 

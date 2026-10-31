@@ -33,7 +33,7 @@ Real terminal captures from an actual run (local test server — no real target 
 - **Extension probing** — `-x php,html` requests each word plus its extension variants (e.g. `/admin`, `/admin.php`, `/admin.html`)
 - **URL normalization** — `example.com` becomes `https://example.com` automatically
 - **Proxy support** — route traffic through an HTTP proxy (e.g. Burp Suite) with `--proxy`
-- **Output modes** — verbose logging (`-v`) for debugging, quiet mode (`-q`) that suppresses the banner and summary lines for cleaner piped output, `-o/--output` to save hits to a file
+- **Output modes** — verbose logging (`-v`) for debugging, quiet mode (`-q`) that suppresses the banner and summary lines for cleaner piped output, `-o/--output` to save hits to a file (`--append` accumulates across runs instead of overwriting)
 - **Graceful errors** — connection errors and timeouts are caught per-request; `Ctrl+C` exits cleanly
 - **Rate-limit handling** — backs off and retries HTTP 429 responses (exponential backoff, honors the server's `Retry-After` header in both delta-seconds and HTTP-date forms); tune with `--retries`; hits that needed retries are marked `(retried N)` in terminal, `-o`, and `--json` output so rate-limit pressure stays visible instead of silent
 - **Stealth controls** — `--delay` pauses each worker between requests for slower, quieter scans on rate-limited targets; `--rate-limit RPS` caps the global request rate across all workers via a shared token bucket, for targets with strict server-side limits; `--user-agent` overrides the default `DurbX/0.1` User-Agent header
@@ -118,6 +118,9 @@ durbx -u https://example.com -w wordlist.txt -q
 
 # Save discovered hits to a file (plain text, no color codes)
 durbx -u https://example.com -w wordlist.txt -o hits.txt
+
+# Accumulate hits across runs instead of overwriting the file
+durbx -u https://example.com -w wordlist.txt -o hits.txt --append
 
 # Machine-readable JSON report (hits + stats) for pipelines
 durbx -u https://example.com -w wordlist.txt --json report.json
@@ -213,6 +216,7 @@ FILTERS
 OUTPUT & LOGGING
   --proxy                 HTTP proxy URL
   -o, --output            Save hits to a file
+  --append                Append hits to the -o file instead of overwriting it
   --json                  Save a machine-readable JSON report (hits + stats) to a file
   --checkpoint            Write resume checkpoints during the scan (single-target)
   --resume                Resume an interrupted scan from a checkpoint (single-target)
