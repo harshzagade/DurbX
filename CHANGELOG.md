@@ -6,6 +6,13 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Directory-listing detection: 200 responses whose first 8 KB look like a
+  server autoindex page (`<title>`/`<h1>` "Index of /..." markers, as used
+  by Apache/nginx/lighttpd) are flagged `(directory listing)` in terminal
+  and `-o` output, carried as `directory_listing` in `--json` hits and a
+  `directory_listings` stats count, and tallied in the final summary.
+  Detection reads only the first 8 KB, is off for the wildcard probe, and
+  fails open when a response exposes no body reader. 6 new unit tests.
 - `--append` for `-o/--output`: append hits to the output file instead of
   overwriting it, for accumulating results across multiple runs.
   `--append` without `-o` fails fast with exit 2, and appending to a file

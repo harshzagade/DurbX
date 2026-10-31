@@ -266,6 +266,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.quiet:
         total_hits = sum(summary.hits for summary in summaries)
         total_filtered = sum(summary.wildcard_filtered for summary in summaries)
+        total_listings = sum(summary.directory_listings for summary in summaries)
         total_completed = sum(summary.completed for summary in summaries)
         total_scanned = sum(summary.total for summary in summaries)
         filtered_note = (
@@ -273,10 +274,15 @@ def main(argv: list[str] | None = None) -> int:
             if total_filtered
             else ""
         )
+        listing_note = (
+            f" ({total_listings} directory listing(s) flagged)"
+            if total_listings
+            else ""
+        )
         if len(base_urls) > 1:
-            console.print(f"\n[dim]Finished in {duration:.2f}s. Total hits across {len(base_urls)} targets: {total_hits}{filtered_note}[/dim]")
+            console.print(f"\n[dim]Finished in {duration:.2f}s. Total hits across {len(base_urls)} targets: {total_hits}{filtered_note}{listing_note}[/dim]")
         else:
-            console.print(f"\n[dim]Finished in {duration:.2f}s. Total hits: {total_hits}{filtered_note}[/dim]")
+            console.print(f"\n[dim]Finished in {duration:.2f}s. Total hits: {total_hits}{filtered_note}{listing_note}[/dim]")
         console.print(f"[dim]Progress: {total_completed} / {total_scanned} (100.00%)[/dim]")
     
     return 0

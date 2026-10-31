@@ -38,6 +38,7 @@ class ScanResult:
     reason: str
     size: int
     attempts: int = 1
+    is_directory_listing: bool = False
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,7 @@ class ScanSummary:
     hits: int
     wildcard_filtered: int = 0
     fingerprint: WildcardFingerprint | None = None
+    directory_listings: int = 0
 
 
 @dataclass(frozen=True)
@@ -65,6 +67,7 @@ class FetchOutcome:
     reason: str
     content_length: int
     attempts: int
+    is_directory_listing: bool = False
 
 
 def normalize_target(target: str) -> str:
@@ -507,6 +510,7 @@ async def fetch_with_retry(
     max_retries: int,
     allow_redirects: bool = False,
     proxy: str | None = None,
+    inspect_body: bool = False,
 ) -> FetchOutcome:
     """Request ``url`` with ``method``, backing off and retrying on HTTP 429.
 
@@ -514,7 +518,10 @@ async def fetch_with_retry(
     retrying). Waits out the server's ``Retry-After`` header when present,
     otherwise uses exponential backoff. Non-429 responses are returned
     immediately. ``aiohttp`` client errors and timeouts propagate to the
-    caller.
+    caller. When ``inspect_body`` is set, a 200 response's first 8 KB are
+    checked for server autoindex markers (see
+    :func:`looks_like_directory_listing`); the wildcard probe leaves it
+    off since it only needs status + size.
     """
     retries = max(0, max_retries)
     attempt = 0
@@ -522,15 +529,66 @@ async def fetch_with_retry(
         async with session.request(method, url, allow_redirects=allow_redirects, proxy=proxy) as response:
             status = response.status
             if status != 429 or attempt >= retries:
+                listing = False
+                if inspect_body and status == 200:
+                    listing = looks_like_directory_listing(
+                        await _read_body_snippet(response)
+                    )
                 return FetchOutcome(
                     status=status,
                     reason=response.reason or "OK",
                     content_length=int(response.headers.get("Content-Length", "0") or 0),
                     attempts=attempt + 1,
+                    is_directory_listing=listing,
                 )
             delay = retry_delay(attempt, parse_retry_after(response.headers.get("Retry-After")))
             await asyncio.sleep(delay)
             attempt += 1
+
+
+_BODY_SNIPPET_LIMIT = 8192
+
+_DIRECTORY_LISTING_PATTERNS = (
+    # Apache / nginx / lighttpd autoindex pages title (and head) their
+    # listings "Index of /path/". Requiring the title/h1 form (not just
+    # the words anywhere in the body) keeps ordinary pages that merely
+    # mention an index from being flagged.
+    re.compile(r"<title>\s*index of\s+/", re.IGNORECASE),
+    re.compile(r"<h1[^>]*>\s*index of\s+/", re.IGNORECASE),
+)
+
+
+def looks_like_directory_listing(body_text: str) -> bool:
+    """True when a response body looks like a server autoindex page.
+
+    Matches the ``<title>Index of /...`` / ``<h1>Index of /...`` markers
+    used by Apache, nginx, and lighttpd directory listings. A page that
+    only mentions "Index of" in prose does not match.
+    """
+    if not body_text:
+        return False
+    return any(pattern.search(body_text) for pattern in _DIRECTORY_LISTING_PATTERNS)
+
+
+async def _read_body_snippet(response) -> str:
+    """Read up to 8 KB of a response body as text, best-effort.
+
+    Real aiohttp responses expose ``.content.read(n)``; test doubles and
+    stubs may expose no body reader at all — in that case (or on any
+    read error) returns ``""`` so detection fails open instead of
+    breaking the scan.
+    """
+    content = getattr(response, "content", None)
+    read = getattr(content, "read", None)
+    if not callable(read):
+        return ""
+    try:
+        chunk = await read(_BODY_SNIPPET_LIMIT)
+    except Exception:
+        return ""
+    if isinstance(chunk, bytes):
+        return chunk.decode("utf-8", errors="ignore")
+    return str(chunk)
 
 
 def wildcard_probe_path() -> str:
@@ -657,6 +715,7 @@ async def enumerate_directories(
     completed = 0
     hits = 0
     wildcard_filtered = 0
+    directory_listings = 0
     fingerprint: WildcardFingerprint | None = None
     start_time = time.time()
     last_render_time = 0.0
@@ -711,7 +770,7 @@ async def enumerate_directories(
         print(f"\r[{bar}] {percent * 100:4.1f}% ({completed}/{total}) | ETA: {eta}", end="", flush=True)
 
     async def scan(session: aiohttp.ClientSession, entry: str) -> ScanResult:
-        nonlocal completed, hits, wildcard_filtered
+        nonlocal completed, hits, wildcard_filtered, directory_listings
         encoded_entry = quote(entry, safe="/")
         target_url = f"{base_url}/{encoded_entry}"
         try:
@@ -722,6 +781,7 @@ async def enumerate_directories(
                 max_retries=max_retries,
                 allow_redirects=follow_redirects,
                 proxy=proxy,
+                inspect_body=True,
             )
         except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
             detail = str(exc).strip()
@@ -742,6 +802,7 @@ async def enumerate_directories(
                 reason=outcome.reason,
                 size=outcome.content_length,
                 attempts=outcome.attempts,
+                is_directory_listing=outcome.is_directory_listing,
             )
 
         async with print_lock:
@@ -758,6 +819,8 @@ async def enumerate_directories(
                 wildcard_filtered += 1
             elif should_show_result(result, status_filter=status_filter, exclude_filter=exclude_filter, all_codes=all_codes, filter_lengths=filter_lengths, match_lengths=match_lengths):
                 hits += 1
+                if result.is_directory_listing:
+                    directory_listings += 1
                 hit = True
                 print("\r" + " " * 100 + "\r", end="")
                 if on_result is not None:
@@ -842,4 +905,5 @@ async def enumerate_directories(
         hits=hits,
         wildcard_filtered=wildcard_filtered,
         fingerprint=fingerprint,
+        directory_listings=directory_listings,
     )

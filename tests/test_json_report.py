@@ -50,6 +50,7 @@ def test_render_json_report_structure() -> None:
         "reason": "OK",
         "size": 1234,
         "attempts": 1,
+        "directory_listing": False,
     }
 
 

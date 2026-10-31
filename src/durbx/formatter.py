@@ -38,11 +38,19 @@ def _retry_note(result: ScanResult) -> str:
     return ""
 
 
+def _listing_note(result: ScanResult) -> str:
+    """`` (directory listing)`` suffix for hits whose 200 body looks like
+    a server autoindex page; unflagged hits render exactly as before."""
+    if result.is_directory_listing:
+        return " (directory listing)"
+    return ""
+
+
 def format_result(result: ScanResult) -> str:
     status = str(result.status_code) if result.status_code is not None else "-"
     size = f"{result.size}B"
     color = _color_for_status(result.status_code)
-    line = f"{result.path:<20} {status:<5} {size:<10}{_retry_note(result)}"
+    line = f"{result.path:<20} {status:<5} {size:<10}{_retry_note(result)}{_listing_note(result)}"
     if result.status_code in {200, 301, 302}:
         line += f" -> {result.url}"
     return color + line + Style.RESET_ALL
@@ -52,7 +60,7 @@ def plain_result_line(result: ScanResult) -> str:
     """Single-line hit without ANSI colors, for output files and piping."""
     status = str(result.status_code) if result.status_code is not None else "-"
     size = f"{result.size}B"
-    line = f"{result.path:<20} {status:<5} {size:<10}{_retry_note(result)}"
+    line = f"{result.path:<20} {status:<5} {size:<10}{_retry_note(result)}{_listing_note(result)}"
     if result.status_code in {200, 301, 302}:
         line += f" -> {result.url}"
     return line
@@ -88,6 +96,7 @@ def render_json_report(
                     "reason": hit.reason,
                     "size": hit.size,
                     "attempts": hit.attempts,
+                    "directory_listing": hit.is_directory_listing,
                 }
             )
     stats = {
@@ -96,6 +105,7 @@ def render_json_report(
         "total": sum(summary.total for summary in summaries),
         "hits": sum(summary.hits for summary in summaries),
         "wildcard_filtered": sum(summary.wildcard_filtered for summary in summaries),
+        "directory_listings": sum(summary.directory_listings for summary in summaries),
         "duration_seconds": round(duration, 2),
     }
     return json.dumps({"tool": "DurbX", "stats": stats, "results": results}, indent=2)
