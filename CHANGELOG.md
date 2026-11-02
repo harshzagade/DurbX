@@ -6,6 +6,13 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Redirect-target capture: 3xx hits now record the response's `Location`
+  header, so terminal/`-o` output shows `-> <destination>` instead of
+  repeating the requested URL (which said nothing about where the
+  redirect goes); other 3xx codes (303/307/308) gain the suffix too, and
+  `--json` hits carry a `redirect_target` field (null when absent).
+  Hits without a captured target keep the old `-> <url>` suffix.
+  6 new unit tests.
 - `--random-agent`: rotate the User-Agent per scan request from a small
   built-in list of common browser agents (Chrome/Firefox/Safari/Edge on
   Windows, macOS, and Linux), round-robin so scans stay reproducible.

@@ -46,13 +46,32 @@ def _listing_note(result: ScanResult) -> str:
     return ""
 
 
+def _url_suffix(result: ScanResult) -> str:
+    """`` -> <destination>`` suffix for hits that carry a URL worth showing.
+
+    A 3xx hit with a captured ``Location`` header points at its redirect
+    target — previously the suffix just repeated the requested URL, which
+    said nothing about where the redirect goes. Without a captured target
+    (or for 200s), the suffix falls back to the requested URL as before,
+    and other statuses get no suffix.
+    """
+    if (
+        result.status_code is not None
+        and 300 <= result.status_code < 400
+        and result.redirect_target
+    ):
+        return f" -> {result.redirect_target}"
+    if result.status_code in {200, 301, 302}:
+        return f" -> {result.url}"
+    return ""
+
+
 def format_result(result: ScanResult) -> str:
     status = str(result.status_code) if result.status_code is not None else "-"
     size = f"{result.size}B"
     color = _color_for_status(result.status_code)
     line = f"{result.path:<20} {status:<5} {size:<10}{_retry_note(result)}{_listing_note(result)}"
-    if result.status_code in {200, 301, 302}:
-        line += f" -> {result.url}"
+    line += _url_suffix(result)
     return color + line + Style.RESET_ALL
 
 
@@ -61,8 +80,7 @@ def plain_result_line(result: ScanResult) -> str:
     status = str(result.status_code) if result.status_code is not None else "-"
     size = f"{result.size}B"
     line = f"{result.path:<20} {status:<5} {size:<10}{_retry_note(result)}{_listing_note(result)}"
-    if result.status_code in {200, 301, 302}:
-        line += f" -> {result.url}"
+    line += _url_suffix(result)
     return line
 
 
@@ -79,7 +97,7 @@ def render_json_report(
     """Machine-readable JSON report for pipelines.
 
     Carries every hit (target, path, URL, status, reason, size, request
-    attempts) plus an
+    attempts, redirect target) plus an
     aggregate ``stats`` block — completed/total counts, hit count,
     wildcard-filtered count, and scan duration — so CI and recon pipelines
     can consume results without parsing terminal output.
@@ -97,6 +115,7 @@ def render_json_report(
                     "size": hit.size,
                     "attempts": hit.attempts,
                     "directory_listing": hit.is_directory_listing,
+                    "redirect_target": hit.redirect_target,
                 }
             )
     stats = {

@@ -51,6 +51,7 @@ def test_render_json_report_structure() -> None:
         "size": 1234,
         "attempts": 1,
         "directory_listing": False,
+        "redirect_target": None,
     }
 
 

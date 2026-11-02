@@ -57,6 +57,7 @@ class ScanResult:
     size: int
     attempts: int = 1
     is_directory_listing: bool = False
+    redirect_target: str | None = None
 
 
 @dataclass(frozen=True)
@@ -86,6 +87,7 @@ class FetchOutcome:
     content_length: int
     attempts: int
     is_directory_listing: bool = False
+    redirect_target: str | None = None
 
 
 def normalize_target(target: str) -> str:
@@ -561,7 +563,9 @@ async def fetch_with_retry(
     caller. When ``inspect_body`` is set, a 200 response's first 8 KB are
     checked for server autoindex markers (see
     :func:`looks_like_directory_listing`); the wildcard probe leaves it
-    off since it only needs status + size.
+    off since it only needs status + size. A 3xx response's ``Location``
+    header is captured as ``redirect_target`` so hit output can show
+    where the redirect points instead of repeating the requested URL.
     """
     retries = max(0, max_retries)
     attempt = 0
@@ -580,12 +584,20 @@ async def fetch_with_retry(
                     listing = looks_like_directory_listing(
                         await _read_body_snippet(response)
                     )
+                # The Location header is the redirect's real destination:
+                # without it, a 3xx hit's "-> url" suffix just repeats the
+                # URL that was requested. Only 3xx responses carry one;
+                # a Location on any other status is ignored.
+                redirect_target = None
+                if 300 <= status < 400:
+                    redirect_target = response.headers.get("Location") or None
                 return FetchOutcome(
                     status=status,
                     reason=response.reason or "OK",
                     content_length=int(response.headers.get("Content-Length", "0") or 0),
                     attempts=attempt + 1,
                     is_directory_listing=listing,
+                    redirect_target=redirect_target,
                 )
             delay = retry_delay(attempt, parse_retry_after(response.headers.get("Retry-After")))
             await asyncio.sleep(delay)
@@ -862,6 +874,7 @@ async def enumerate_directories(
                 size=outcome.content_length,
                 attempts=outcome.attempts,
                 is_directory_listing=outcome.is_directory_listing,
+                redirect_target=outcome.redirect_target,
             )
 
         async with print_lock:
