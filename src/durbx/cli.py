@@ -46,6 +46,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--delay", type=float, default=DEFAULT_DELAY, help=f"Pause in seconds between requests per worker (default: {DEFAULT_DELAY}; for stealthy/rate-limited targets)")
     parser.add_argument("--rate-limit", type=float, default=None, help="Global requests-per-second cap shared across workers (e.g. 10; complements --delay)")
     parser.add_argument("--user-agent", default=DEFAULT_USER_AGENT, help=f"Custom User-Agent header (default: {DEFAULT_USER_AGENT})")
+    parser.add_argument("--random-agent", action="store_true", help="Rotate the User-Agent per request from a built-in browser list (overrides --user-agent; an explicit -H User-Agent still wins)")
     parser.add_argument("-H", "--header", action="append", default=None, help="Custom HTTP header, e.g. -H 'Authorization: Bearer abc' (repeatable; overrides --user-agent)")
     parser.add_argument("-m", "--method", default=DEFAULT_METHOD, help=f"HTTP method for requests (default: {DEFAULT_METHOD}; GET/HEAD/POST)")
     parser.add_argument("--follow-redirects", action="store_true", help="Follow 3xx redirects instead of reporting them (default: no)")
@@ -215,6 +216,7 @@ def main(argv: list[str] | None = None) -> int:
                         checkpoint_file=args.checkpoint or args.resume,
                         resume_completed=resume_completed,
                         rate_limit=rate_limit,
+                        random_agent=args.random_agent,
                     )
                 )
             )

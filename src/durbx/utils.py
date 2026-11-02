@@ -59,6 +59,7 @@ def print_help():
             ("--delay", "Pause between requests per worker [dim](default: 0)[/dim]"),
             ("--rate-limit", "Global requests-per-second cap [dim](shared across workers)[/dim]"),
             ("--user-agent", "Custom User-Agent header [dim](default: DurbX/0.1)[/dim]"),
+            ("--random-agent", "Rotate User-Agent per request [dim](built-in browser list)[/dim]"),
             ("-H, --header", "Custom HTTP header [dim](repeatable; overrides --user-agent)[/dim]"),
             ("-m, --method", "HTTP request method [dim](GET/HEAD/POST; default: GET)[/dim]"),
         ],

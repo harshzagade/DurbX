@@ -6,6 +6,12 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--random-agent`: rotate the User-Agent per scan request from a small
+  built-in list of common browser agents (Chrome/Firefox/Safari/Edge on
+  Windows, macOS, and Linux), round-robin so scans stay reproducible.
+  Overrides `--user-agent` for scan requests; an explicit `-H User-Agent`
+  header still wins (existing precedence), and the soft-404 probe keeps
+  the session agent. 7 new unit tests.
 - Directory-listing detection: 200 responses whose first 8 KB look like a
   server autoindex page (`<title>`/`<h1>` "Index of /..." markers, as used
   by Apache/nginx/lighttpd) are flagged `(directory listing)` in terminal

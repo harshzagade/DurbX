@@ -22,6 +22,24 @@ DEFAULT_THREADS = 50
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_DELAY = 0.0
 DEFAULT_USER_AGENT = "DurbX/0.1"
+# Small built-in pool of common browser User-Agents for --random-agent.
+# Round-robin rotation (not random choice) keeps scans reproducible and
+# the rotation trivially testable; the pool is deliberately short so a
+# scan's traffic still looks like ordinary browser traffic.
+RANDOM_USER_AGENTS = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) "
+    "Gecko/20100101 Firefox/133.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_2) AppleWebKit/605.1.15 "
+    "(KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+)
 DEFAULT_METHOD = "GET"
 VALID_METHODS = ("GET", "HEAD", "POST")
 RETRY_BACKOFF_BASE = 1.0
@@ -442,6 +460,27 @@ def parse_rate_limit(raw_value: float | None) -> float | None:
     return rate
 
 
+class UserAgentRotator:
+    """Round-robin User-Agent rotation for ``--random-agent``.
+
+    ``next()`` returns the next browser User-Agent from
+    :data:`RANDOM_USER_AGENTS`, wrapping to the start of the pool. One
+    rotator is shared by all scan workers, so concurrent requests still
+    cycle through the pool instead of every worker pinning one agent.
+    """
+
+    def __init__(self, user_agents: tuple[str, ...] = RANDOM_USER_AGENTS) -> None:
+        if not user_agents:
+            raise ValueError("User-Agent pool must not be empty")
+        self._user_agents = tuple(user_agents)
+        self._index = 0
+
+    def next(self) -> str:
+        agent = self._user_agents[self._index % len(self._user_agents)]
+        self._index += 1
+        return agent
+
+
 class RateLimiter:
     """Async token bucket shared across all scan workers.
 
@@ -511,6 +550,7 @@ async def fetch_with_retry(
     allow_redirects: bool = False,
     proxy: str | None = None,
     inspect_body: bool = False,
+    headers: dict[str, str] | None = None,
 ) -> FetchOutcome:
     """Request ``url`` with ``method``, backing off and retrying on HTTP 429.
 
@@ -526,7 +566,13 @@ async def fetch_with_retry(
     retries = max(0, max_retries)
     attempt = 0
     while True:
-        async with session.request(method, url, allow_redirects=allow_redirects, proxy=proxy) as response:
+        request_kwargs: dict = {"allow_redirects": allow_redirects, "proxy": proxy}
+        if headers is not None:
+            # Per-request headers override the session-level headers in
+            # aiohttp, which is how --random-agent rotates the User-Agent
+            # without rebuilding the session per request.
+            request_kwargs["headers"] = headers
+        async with session.request(method, url, **request_kwargs) as response:
             status = response.status
             if status != 429 or attempt >= retries:
                 listing = False
@@ -705,6 +751,7 @@ async def enumerate_directories(
     checkpoint_every: float = DEFAULT_CHECKPOINT_EVERY,
     resume_completed: list[str] | None = None,
     rate_limit: float | None = None,
+    random_agent: bool = False,
 ) -> ScanSummary:
     status_filter = status_filter or []
     exclude_filter = exclude_filter or []
@@ -769,10 +816,21 @@ async def enumerate_directories(
         eta = time.strftime("%M:%S", time.gmtime(remaining))
         print(f"\r[{bar}] {percent * 100:4.1f}% ({completed}/{total}) | ETA: {eta}", end="", flush=True)
 
+    # --random-agent rotates the User-Agent per scan request, overriding
+    # --user-agent — but an explicit -H User-Agent header still wins,
+    # matching the existing -H-over---user-agent precedence.
+    explicit_agent = any(
+        name.lower() == "user-agent" for name in (custom_headers or {})
+    )
+    rotator = UserAgentRotator() if (random_agent and not explicit_agent) else None
+
     async def scan(session: aiohttp.ClientSession, entry: str) -> ScanResult:
         nonlocal completed, hits, wildcard_filtered, directory_listings
         encoded_entry = quote(entry, safe="/")
         target_url = f"{base_url}/{encoded_entry}"
+        request_headers = (
+            {"User-Agent": rotator.next()} if rotator is not None else None
+        )
         try:
             outcome = await fetch_with_retry(
                 session,
@@ -782,6 +840,7 @@ async def enumerate_directories(
                 allow_redirects=follow_redirects,
                 proxy=proxy,
                 inspect_body=True,
+                headers=request_headers,
             )
         except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
             detail = str(exc).strip()

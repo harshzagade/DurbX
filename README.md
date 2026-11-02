@@ -37,7 +37,7 @@ Real terminal captures from an actual run (local test server — no real target 
 - **Directory-listing detection** — 200 responses whose body looks like a server autoindex page (`<title>`/`<h1>` "Index of /...") are flagged `(directory listing)` in terminal, `-o`, and `--json` output, with a count in the final summary (HEAD scans cannot flag listings, since HEAD responses carry no body)
 - **Graceful errors** — connection errors and timeouts are caught per-request; `Ctrl+C` exits cleanly
 - **Rate-limit handling** — backs off and retries HTTP 429 responses (exponential backoff, honors the server's `Retry-After` header in both delta-seconds and HTTP-date forms); tune with `--retries`; hits that needed retries are marked `(retried N)` in terminal, `-o`, and `--json` output so rate-limit pressure stays visible instead of silent
-- **Stealth controls** — `--delay` pauses each worker between requests for slower, quieter scans on rate-limited targets; `--rate-limit RPS` caps the global request rate across all workers via a shared token bucket, for targets with strict server-side limits; `--user-agent` overrides the default `DurbX/0.1` User-Agent header
+- **Stealth controls** — `--delay` pauses each worker between requests for slower, quieter scans on rate-limited targets; `--rate-limit RPS` caps the global request rate across all workers via a shared token bucket, for targets with strict server-side limits; `--user-agent` overrides the default `DurbX/0.1` User-Agent header; `--random-agent` rotates the User-Agent per scan request from a built-in list of common browser agents (overrides `--user-agent`; an explicit `-H User-Agent` header still wins; the soft-404 probe keeps the session agent)
 - **HTTP method choice** — `-m/--method GET|HEAD|POST` swaps the request verb instead of hard-coding GET (HEAD is lighter on big targets; POST catches methods-only endpoints)
 - **Redirect following** — `--follow-redirects` follows 3xx responses instead of reporting the redirect itself, so results reflect the final status (the soft-404 probe follows the same policy so filtering stays consistent)
 - **Custom headers** — repeatable `-H/--header "Name: value"` sends custom HTTP headers (auth cookies, tokens) with every request; a custom `User-Agent` header overrides `--user-agent`
@@ -200,6 +200,7 @@ CORE SETTINGS
   -t, --threads           Concurrent threads (default: 50)
   --delay                 Pause between requests per worker (default: 0)
   --user-agent            Custom User-Agent header (default: DurbX/0.1)
+  --random-agent          Rotate User-Agent per request (built-in browser list)
   -H, --header            Custom HTTP header (repeatable; overrides --user-agent)
   -m, --method            HTTP request method (default: GET; GET/HEAD/POST)
 
