@@ -29,6 +29,7 @@ from .formatter import (
     format_result,
     format_status_breakdown,
     render_json_report,
+    render_latency_summary,
     render_plain_results,
 )
 from .utils import LOGO, setup_logging, console, print_help
@@ -298,6 +299,9 @@ def main(argv: list[str] | None = None) -> int:
             console.print(f"\n[dim]Finished in {duration:.2f}s. Total hits across {len(base_urls)} targets: {total_hits}{filtered_note}{listing_note}{status_note}[/dim]")
         else:
             console.print(f"\n[dim]Finished in {duration:.2f}s. Total hits: {total_hits}{filtered_note}{listing_note}{status_note}[/dim]")
+        latency_summary = render_latency_summary(hits)
+        if latency_summary:
+            console.print(f"[dim]Latency: {latency_summary}[/dim]")
         console.print(f"[dim]Progress: {total_completed} / {total_scanned} (100.00%)[/dim]")
     
     return 0

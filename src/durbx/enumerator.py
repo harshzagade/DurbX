@@ -58,6 +58,10 @@ class ScanResult:
     attempts: int = 1
     is_directory_listing: bool = False
     redirect_target: str | None = None
+    # Wall-clock time of the entry's request(s) in milliseconds, retries
+    # included, measured inside scan(); None when no measurement was taken
+    # (e.g. results built by hand in tests or older code paths).
+    latency_ms: float | None = None
 
 
 @dataclass(frozen=True)
@@ -848,6 +852,10 @@ async def enumerate_directories(
         request_headers = (
             {"User-Agent": rotator.next()} if rotator is not None else None
         )
+        # Wall-clock latency of this entry's request, retries and their
+        # backoff included: that is the time the entry actually cost the
+        # scan, which is what the summary's slowest-hit list should rank.
+        started = time.monotonic()
         try:
             outcome = await fetch_with_retry(
                 session,
@@ -869,6 +877,7 @@ async def enumerate_directories(
                 url=target_url,
                 reason=detail,
                 size=0,
+                latency_ms=(time.monotonic() - started) * 1000,
             )
         else:
             result = ScanResult(
@@ -880,6 +889,7 @@ async def enumerate_directories(
                 attempts=outcome.attempts,
                 is_directory_listing=outcome.is_directory_listing,
                 redirect_target=outcome.redirect_target,
+                latency_ms=(time.monotonic() - started) * 1000,
             )
 
         async with print_lock:

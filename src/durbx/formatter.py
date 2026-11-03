@@ -112,6 +112,24 @@ def _aggregate_status_counts(summaries: list[ScanSummary]) -> dict[int, int]:
     return totals
 
 
+def render_latency_summary(hits: list[ScanResult]) -> str | None:
+    """``avg X ms; slowest: /a (Y ms), /b (Z ms)`` for the final summary.
+
+    Only hits with a measured latency count toward the average or the
+    slowest-3 list; when no hit carries a measurement there is nothing
+    to summarize and this returns ``None`` so the caller omits the line.
+    """
+    measured = [hit for hit in hits if hit.latency_ms is not None]
+    if not measured:
+        return None
+    average = sum(hit.latency_ms for hit in measured) / len(measured)
+    slowest = sorted(measured, key=lambda hit: hit.latency_ms, reverse=True)[:3]
+    slowest_text = ", ".join(
+        f"{hit.path} ({hit.latency_ms:.1f}ms)" for hit in slowest
+    )
+    return f"avg {average:.1f}ms; slowest: {slowest_text}"
+
+
 def render_json_report(
     hits_by_target: list[tuple[str, list[ScanResult]]],
     summaries: list[ScanSummary],
@@ -139,8 +157,15 @@ def render_json_report(
                     "attempts": hit.attempts,
                     "directory_listing": hit.is_directory_listing,
                     "redirect_target": hit.redirect_target,
+                    "latency_ms": (
+                        round(hit.latency_ms, 2)
+                        if hit.latency_ms is not None
+                        else None
+                    ),
                 }
             )
+    all_hits = [hit for _, target_hits in hits_by_target for hit in target_hits]
+    measured = [hit for hit in all_hits if hit.latency_ms is not None]
     stats = {
         "targets": len(hits_by_target),
         "completed": sum(summary.completed for summary in summaries),
@@ -149,6 +174,21 @@ def render_json_report(
         "wildcard_filtered": sum(summary.wildcard_filtered for summary in summaries),
         "directory_listings": sum(summary.directory_listings for summary in summaries),
         "status_counts": _aggregate_status_counts(summaries),
+        "avg_latency_ms": (
+            round(sum(hit.latency_ms for hit in measured) / len(measured), 2)
+            if measured
+            else None
+        ),
+        "slowest_hits": [
+            {
+                "path": hit.path,
+                "status_code": hit.status_code,
+                "latency_ms": round(hit.latency_ms, 2),
+            }
+            for hit in sorted(
+                measured, key=lambda hit: hit.latency_ms, reverse=True
+            )[:3]
+        ],
         "duration_seconds": round(duration, 2),
     }
     return json.dumps({"tool": "DurbX", "stats": stats, "results": results}, indent=2)

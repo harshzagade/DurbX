@@ -48,6 +48,7 @@ Real terminal captures from an actual run (local test server — no real target 
 - **Stdin path input** — `--stdin` (or `-w -`) reads candidate paths from stdin instead of a wordlist file, so DurbX pipes cleanly from other recon tools (`other-tool | durbx -u example.com --stdin`); same normalization as wordlist files (blanks, `#` comments, duplicates dropped)
 - **JSON report** — `--json report.json` writes a machine-readable final report (every hit plus an aggregate `stats` block: completed/total, hit count, wildcard-filtered count, duration) for CI and recon pipelines
 - **Per-status breakdown** — the final summary reports hit counts per status code (`by status: 200: 3, 403: 1`) instead of only a total, and `--json` carries the same breakdown as `stats.status_counts`, so the shape of a scan's results is visible at a glance
+- **Request latency** — every hit carries its request time (retries included), the final summary reports the average plus the 3 slowest hits, and `--json` carries `avg_latency_ms`, `slowest_hits`, and per-hit `latency_ms`, so slow paths stand out instead of hiding in the total duration
 - **Resume support** — `--checkpoint cp.json` writes progress checkpoints during a scan (temp-file + rename, so a kill never corrupts it); `--resume cp.json` continues an interrupted scan exactly where it stopped, skipping already-scanned entries. Single-target only; the checkpoint refuses mismatched targets/wordlists and already-finished scans
 
 ---

@@ -12,6 +12,13 @@ All notable changes to DurbX are documented here. The format follows
   breakdown as `stats.status_counts`. Only displayed hits are counted —
   wildcard-filtered rows and failed requests never appear. 6 new unit
   tests.
+- Request latency: every hit records its wall-clock request time in
+  milliseconds (retries and their backoff included); the final summary
+  prints the average plus the 3 slowest hits, and `--json` reports carry
+  `avg_latency_ms`, `slowest_hits`, and per-hit `latency_ms`. Hits built
+  without a measurement (e.g. older code paths) report `null` and are
+  excluded from the averages. 6 new unit tests (one existing exact-dict
+  JSON test updated for the new hit field).
 - Redirect-target capture: 3xx hits now record the response's `Location`
   header, so terminal/`-o` output shows `-> <destination>` instead of
   repeating the requested URL (which said nothing about where the
