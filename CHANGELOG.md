@@ -6,6 +6,12 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Per-status breakdown in the final summary: hit counts per status code
+  (`by status: 200: 3, 403: 1`) instead of only a total, aggregated
+  across targets for multi-target runs; `--json` reports carry the same
+  breakdown as `stats.status_counts`. Only displayed hits are counted —
+  wildcard-filtered rows and failed requests never appear. 6 new unit
+  tests.
 - Redirect-target capture: 3xx hits now record the response's `Location`
   header, so terminal/`-o` output shows `-> <destination>` instead of
   repeating the requested URL (which said nothing about where the

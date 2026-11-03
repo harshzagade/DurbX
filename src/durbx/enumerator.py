@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 import json
@@ -68,6 +68,10 @@ class ScanSummary:
     wildcard_filtered: int = 0
     fingerprint: WildcardFingerprint | None = None
     directory_listings: int = 0
+    # Hit counts per status code, e.g. {200: 3, 403: 1}. Only results
+    # that pass the display filters count as hits, so wildcard-filtered
+    # rows and failed requests (status None) never appear here.
+    status_counts: dict[int, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -775,6 +779,7 @@ async def enumerate_directories(
     hits = 0
     wildcard_filtered = 0
     directory_listings = 0
+    status_counts: dict[int, int] = {}
     fingerprint: WildcardFingerprint | None = None
     start_time = time.time()
     last_render_time = 0.0
@@ -891,6 +896,10 @@ async def enumerate_directories(
                 wildcard_filtered += 1
             elif should_show_result(result, status_filter=status_filter, exclude_filter=exclude_filter, all_codes=all_codes, filter_lengths=filter_lengths, match_lengths=match_lengths):
                 hits += 1
+                if result.status_code is not None:
+                    status_counts[result.status_code] = (
+                        status_counts.get(result.status_code, 0) + 1
+                    )
                 if result.is_directory_listing:
                     directory_listings += 1
                 hit = True
@@ -978,4 +987,5 @@ async def enumerate_directories(
         wildcard_filtered=wildcard_filtered,
         fingerprint=fingerprint,
         directory_listings=directory_listings,
+        status_counts=status_counts,
     )

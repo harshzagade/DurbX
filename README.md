@@ -47,6 +47,7 @@ Real terminal captures from an actual run (local test server — no real target 
 - **Body-size matching** — `--match-length N` is the inverse: show ONLY responses whose body size equals N, for zeroing in on a known interesting size; comma-separated, combines (AND) with the status filters
 - **Stdin path input** — `--stdin` (or `-w -`) reads candidate paths from stdin instead of a wordlist file, so DurbX pipes cleanly from other recon tools (`other-tool | durbx -u example.com --stdin`); same normalization as wordlist files (blanks, `#` comments, duplicates dropped)
 - **JSON report** — `--json report.json` writes a machine-readable final report (every hit plus an aggregate `stats` block: completed/total, hit count, wildcard-filtered count, duration) for CI and recon pipelines
+- **Per-status breakdown** — the final summary reports hit counts per status code (`by status: 200: 3, 403: 1`) instead of only a total, and `--json` carries the same breakdown as `stats.status_counts`, so the shape of a scan's results is visible at a glance
 - **Resume support** — `--checkpoint cp.json` writes progress checkpoints during a scan (temp-file + rename, so a kill never corrupts it); `--resume cp.json` continues an interrupted scan exactly where it stopped, skipping already-scanned entries. Single-target only; the checkpoint refuses mismatched targets/wordlists and already-finished scans
 
 ---

@@ -89,6 +89,29 @@ def render_plain_results(results: list[ScanResult]) -> str:
     return "\n".join(plain_result_line(result) for result in results)
 
 
+def format_status_breakdown(status_counts: dict[int, int] | None) -> str:
+    """``200: 3, 403: 1`` breakdown of hit counts per status code.
+
+    Codes sort ascending so the summary reads deterministically; an
+    empty (or absent) breakdown renders as ``""`` so callers can omit
+    the note entirely when there are no hits.
+    """
+    if not status_counts:
+        return ""
+    return ", ".join(
+        f"{code}: {status_counts[code]}" for code in sorted(status_counts)
+    )
+
+
+def _aggregate_status_counts(summaries: list[ScanSummary]) -> dict[int, int]:
+    """Sum per-status hit counts across per-target summaries."""
+    totals: dict[int, int] = {}
+    for summary in summaries:
+        for code, count in (summary.status_counts or {}).items():
+            totals[code] = totals.get(code, 0) + count
+    return totals
+
+
 def render_json_report(
     hits_by_target: list[tuple[str, list[ScanResult]]],
     summaries: list[ScanSummary],
@@ -125,6 +148,7 @@ def render_json_report(
         "hits": sum(summary.hits for summary in summaries),
         "wildcard_filtered": sum(summary.wildcard_filtered for summary in summaries),
         "directory_listings": sum(summary.directory_listings for summary in summaries),
+        "status_counts": _aggregate_status_counts(summaries),
         "duration_seconds": round(duration, 2),
     }
     return json.dumps({"tool": "DurbX", "stats": stats, "results": results}, indent=2)

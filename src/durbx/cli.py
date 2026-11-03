@@ -25,7 +25,12 @@ from .enumerator import (
     parse_rate_limit,
     parse_status_codes,
 )
-from .formatter import format_result, render_json_report, render_plain_results
+from .formatter import (
+    format_result,
+    format_status_breakdown,
+    render_json_report,
+    render_plain_results,
+)
 from .utils import LOGO, setup_logging, console, print_help
 
 
@@ -281,10 +286,18 @@ def main(argv: list[str] | None = None) -> int:
             if total_listings
             else ""
         )
+        total_status_counts: dict[int, int] = {}
+        for summary in summaries:
+            for code, count in summary.status_counts.items():
+                total_status_counts[code] = (
+                    total_status_counts.get(code, 0) + count
+                )
+        breakdown = format_status_breakdown(total_status_counts)
+        status_note = f" (by status: {breakdown})" if breakdown else ""
         if len(base_urls) > 1:
-            console.print(f"\n[dim]Finished in {duration:.2f}s. Total hits across {len(base_urls)} targets: {total_hits}{filtered_note}{listing_note}[/dim]")
+            console.print(f"\n[dim]Finished in {duration:.2f}s. Total hits across {len(base_urls)} targets: {total_hits}{filtered_note}{listing_note}{status_note}[/dim]")
         else:
-            console.print(f"\n[dim]Finished in {duration:.2f}s. Total hits: {total_hits}{filtered_note}{listing_note}[/dim]")
+            console.print(f"\n[dim]Finished in {duration:.2f}s. Total hits: {total_hits}{filtered_note}{listing_note}{status_note}[/dim]")
         console.print(f"[dim]Progress: {total_completed} / {total_scanned} (100.00%)[/dim]")
     
     return 0
