@@ -6,6 +6,12 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Tech-header summary: `Server` and `X-Powered-By` values seen across
+  displayed hits are counted per value and reported in the final summary
+  (`Tech headers: Server: nginx/1.18 (2), Apache (1); X-Powered-By:
+  PHP/8.1 (1)`), and carried as `stats.tech_headers` in `--json`
+  reports. Only rows that pass the display filters are counted, so
+  filtered-out responses never contribute. 6 new unit tests.
 - Body-hash dedupe: 200 responses whose first 8 KB hash identically
   (SHA-256, computed from the same single read that feeds directory-listing
   detection) collapse into one representative row with an

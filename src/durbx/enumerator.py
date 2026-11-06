@@ -94,6 +94,10 @@ class ScanSummary:
     # representative itself counts as 1), so durable outputs (-o, --json)
     # can carry the final per-row count.
     duplicate_body_counts: dict[str, int] = field(default_factory=dict)
+    # Technology headers seen across displayed hits, counted per value,
+    # e.g. {"Server": {"nginx/1.18.0": 2}, "X-Powered-By": {"PHP/8.1": 1}}.
+    # Only rows that pass the display filters are counted.
+    tech_headers: dict[str, dict[str, int]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -115,6 +119,8 @@ class FetchOutcome:
     is_directory_listing: bool = False
     redirect_target: str | None = None
     body_hash: str | None = None
+    server: str | None = None
+    powered_by: str | None = None
 
 
 def hash_body_snippet(snippet: str) -> str | None:
@@ -607,6 +613,8 @@ async def fetch_with_retry(
     only needs status + size. A 3xx response's ``Location``
     header is captured as ``redirect_target`` so hit output can show
     where the redirect points instead of repeating the requested URL.
+    The ``Server`` / ``X-Powered-By`` response headers are captured too,
+    for the tech-header summary (counted only for displayed hits).
     """
     retries = max(0, max_retries)
     attempt = 0
@@ -644,6 +652,8 @@ async def fetch_with_retry(
                     is_directory_listing=listing,
                     redirect_target=redirect_target,
                     body_hash=body_hash,
+                    server=response.headers.get("Server") or None,
+                    powered_by=response.headers.get("X-Powered-By") or None,
                 )
             delay = retry_delay(attempt, parse_retry_after(response.headers.get("Retry-After")))
             await asyncio.sleep(delay)
@@ -827,6 +837,8 @@ async def enumerate_directories(
     # row the wildcard or display filters hid never blocks a later row.
     body_hash_counts: dict[str, int] = {}
     duplicate_bodies_collapsed = 0
+    # Technology headers tallied per value across displayed hits.
+    tech_headers: dict[str, dict[str, int]] = {}
     fingerprint: WildcardFingerprint | None = None
     start_time = time.time()
     last_render_time = 0.0
@@ -922,6 +934,8 @@ async def enumerate_directories(
                 size=0,
                 latency_ms=(time.monotonic() - started) * 1000,
             )
+            seen_server = None
+            seen_powered_by = None
         else:
             result = ScanResult(
                 path=f"/{entry}",
@@ -935,6 +949,8 @@ async def enumerate_directories(
                 latency_ms=(time.monotonic() - started) * 1000,
                 body_hash=outcome.body_hash,
             )
+            seen_server = outcome.server
+            seen_powered_by = outcome.powered_by
 
         async with print_lock:
             completed += 1
@@ -949,6 +965,17 @@ async def enumerate_directories(
                 # the user can see the filter did something.
                 wildcard_filtered += 1
             elif should_show_result(result, status_filter=status_filter, exclude_filter=exclude_filter, all_codes=all_codes, filter_lengths=filter_lengths, match_lengths=match_lengths):
+                # Tech headers are tallied for every hit that passes the
+                # display filters — collapsed duplicates included, since
+                # the header was still seen on a hit (its representative
+                # row stands for it).
+                for header_name, header_value in (
+                    ("Server", seen_server),
+                    ("X-Powered-By", seen_powered_by),
+                ):
+                    if header_value:
+                        per_header = tech_headers.setdefault(header_name, {})
+                        per_header[header_value] = per_header.get(header_value, 0) + 1
                 if (
                     result.status_code == 200
                     and result.body_hash is not None
@@ -1059,4 +1086,5 @@ async def enumerate_directories(
         status_counts=status_counts,
         duplicate_bodies_collapsed=duplicate_bodies_collapsed,
         duplicate_body_counts=body_hash_counts,
+        tech_headers=tech_headers,
     )

@@ -121,6 +121,41 @@ def _aggregate_status_counts(summaries: list[ScanSummary]) -> dict[int, int]:
     return totals
 
 
+def format_tech_headers_summary(tech_headers: dict[str, dict[str, int]] | None) -> str | None:
+    """``Server: nginx/1.18 (2), Apache (1); X-Powered-By: PHP/8.1 (1)``.
+
+    One group per header (headers sorted by name), values ranked by count
+    descending then name so the most common server stands out. Empty
+    input returns ``None`` so the caller omits the line entirely.
+    """
+    if not tech_headers:
+        return None
+    groups: list[str] = []
+    for header_name in sorted(tech_headers):
+        values = tech_headers[header_name]
+        if not values:
+            continue
+        ranked = sorted(values.items(), key=lambda item: (-item[1], item[0]))
+        groups.append(
+            f"{header_name}: "
+            + ", ".join(f"{value} ({count})" for value, count in ranked)
+        )
+    if not groups:
+        return None
+    return "; ".join(groups)
+
+
+def _aggregate_tech_headers(summaries: list[ScanSummary]) -> dict[str, dict[str, int]]:
+    """Sum per-value tech-header counts across per-target summaries."""
+    totals: dict[str, dict[str, int]] = {}
+    for summary in summaries:
+        for header_name, values in (summary.tech_headers or {}).items():
+            per_header = totals.setdefault(header_name, {})
+            for value, count in values.items():
+                per_header[value] = per_header.get(value, 0) + count
+    return totals
+
+
 def render_latency_summary(hits: list[ScanResult]) -> str | None:
     """``avg X ms; slowest: /a (Y ms), /b (Z ms)`` for the final summary.
 
@@ -186,6 +221,7 @@ def render_json_report(
         "duplicate_bodies_collapsed": sum(
             summary.duplicate_bodies_collapsed for summary in summaries
         ),
+        "tech_headers": _aggregate_tech_headers(summaries),
         "status_counts": _aggregate_status_counts(summaries),
         "avg_latency_ms": (
             round(sum(hit.latency_ms for hit in measured) / len(measured), 2)

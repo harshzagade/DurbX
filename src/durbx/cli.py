@@ -27,8 +27,10 @@ from .enumerator import (
     parse_status_codes,
 )
 from .formatter import (
+    _aggregate_tech_headers,
     format_result,
     format_status_breakdown,
+    format_tech_headers_summary,
     render_json_report,
     render_latency_summary,
     render_plain_results,
@@ -331,6 +333,9 @@ def main(argv: list[str] | None = None) -> int:
         latency_summary = render_latency_summary(hits)
         if latency_summary:
             console.print(f"[dim]Latency: {latency_summary}[/dim]")
+        tech_summary = format_tech_headers_summary(_aggregate_tech_headers(summaries))
+        if tech_summary:
+            console.print(f"[dim]Tech headers: {tech_summary}[/dim]")
         console.print(f"[dim]Progress: {total_completed} / {total_scanned} (100.00%)[/dim]")
     
     return 0
