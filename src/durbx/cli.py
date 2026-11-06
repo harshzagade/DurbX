@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+from dataclasses import replace
 import sys
 import time
 from pathlib import Path
@@ -231,6 +232,28 @@ def main(argv: list[str] | None = None) -> int:
         console.print(f"\n[bold red][!] Scan interrupted by user. Exiting...[/bold red]")
         return 130
 
+    # Body-hash dedupe counts are final only once the scan ends (a
+    # duplicate can arrive after its representative was already printed),
+    # so refresh the recorded hits from each target's summary before
+    # writing -o output or --json: the live terminal lines keep the count
+    # they had when printed, the durable outputs carry the final count.
+    refreshed_hits_by_target: list[tuple[str, list]] = []
+    for (target, target_hits), summary in zip(hits_by_target, summaries):
+        counts = summary.duplicate_body_counts
+        refreshed_hits_by_target.append(
+            (
+                target,
+                [
+                    replace(hit, duplicate_count=counts.get(hit.body_hash, 1))
+                    if hit.body_hash is not None
+                    else hit
+                    for hit in target_hits
+                ],
+            )
+        )
+    hits_by_target = refreshed_hits_by_target
+    hits = [hit for _, target_hits in hits_by_target for hit in target_hits]
+
     if args.output:
         try:
             needs_separator = False
@@ -295,10 +318,16 @@ def main(argv: list[str] | None = None) -> int:
                 )
         breakdown = format_status_breakdown(total_status_counts)
         status_note = f" (by status: {breakdown})" if breakdown else ""
+        total_dupes = sum(summary.duplicate_bodies_collapsed for summary in summaries)
+        duplicate_note = (
+            f" ({total_dupes} duplicate body(s) collapsed)"
+            if total_dupes
+            else ""
+        )
         if len(base_urls) > 1:
-            console.print(f"\n[dim]Finished in {duration:.2f}s. Total hits across {len(base_urls)} targets: {total_hits}{filtered_note}{listing_note}{status_note}[/dim]")
+            console.print(f"\n[dim]Finished in {duration:.2f}s. Total hits across {len(base_urls)} targets: {total_hits}{filtered_note}{listing_note}{status_note}{duplicate_note}[/dim]")
         else:
-            console.print(f"\n[dim]Finished in {duration:.2f}s. Total hits: {total_hits}{filtered_note}{listing_note}{status_note}[/dim]")
+            console.print(f"\n[dim]Finished in {duration:.2f}s. Total hits: {total_hits}{filtered_note}{listing_note}{status_note}{duplicate_note}[/dim]")
         latency_summary = render_latency_summary(hits)
         if latency_summary:
             console.print(f"[dim]Latency: {latency_summary}[/dim]")

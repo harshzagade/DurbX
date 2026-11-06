@@ -46,6 +46,15 @@ def _listing_note(result: ScanResult) -> str:
     return ""
 
 
+def _duplicate_note(result: ScanResult) -> str:
+    """`` (xN identical bodies)`` suffix for a representative row that
+    absorbed N-1 duplicate-body rows; a lone row renders exactly as
+    before (duplicate_count defaults to 1)."""
+    if result.duplicate_count > 1:
+        return f" (x{result.duplicate_count} identical bodies)"
+    return ""
+
+
 def _url_suffix(result: ScanResult) -> str:
     """`` -> <destination>`` suffix for hits that carry a URL worth showing.
 
@@ -70,7 +79,7 @@ def format_result(result: ScanResult) -> str:
     status = str(result.status_code) if result.status_code is not None else "-"
     size = f"{result.size}B"
     color = _color_for_status(result.status_code)
-    line = f"{result.path:<20} {status:<5} {size:<10}{_retry_note(result)}{_listing_note(result)}"
+    line = f"{result.path:<20} {status:<5} {size:<10}{_retry_note(result)}{_listing_note(result)}{_duplicate_note(result)}"
     line += _url_suffix(result)
     return color + line + Style.RESET_ALL
 
@@ -79,7 +88,7 @@ def plain_result_line(result: ScanResult) -> str:
     """Single-line hit without ANSI colors, for output files and piping."""
     status = str(result.status_code) if result.status_code is not None else "-"
     size = f"{result.size}B"
-    line = f"{result.path:<20} {status:<5} {size:<10}{_retry_note(result)}{_listing_note(result)}"
+    line = f"{result.path:<20} {status:<5} {size:<10}{_retry_note(result)}{_listing_note(result)}{_duplicate_note(result)}"
     line += _url_suffix(result)
     return line
 
@@ -157,6 +166,7 @@ def render_json_report(
                     "attempts": hit.attempts,
                     "directory_listing": hit.is_directory_listing,
                     "redirect_target": hit.redirect_target,
+                    "duplicate_count": hit.duplicate_count,
                     "latency_ms": (
                         round(hit.latency_ms, 2)
                         if hit.latency_ms is not None
@@ -173,6 +183,9 @@ def render_json_report(
         "hits": sum(summary.hits for summary in summaries),
         "wildcard_filtered": sum(summary.wildcard_filtered for summary in summaries),
         "directory_listings": sum(summary.directory_listings for summary in summaries),
+        "duplicate_bodies_collapsed": sum(
+            summary.duplicate_bodies_collapsed for summary in summaries
+        ),
         "status_counts": _aggregate_status_counts(summaries),
         "avg_latency_ms": (
             round(sum(hit.latency_ms for hit in measured) / len(measured), 2)

@@ -6,6 +6,18 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Body-hash dedupe: 200 responses whose first 8 KB hash identically
+  (SHA-256, computed from the same single read that feeds directory-listing
+  detection) collapse into one representative row with an
+  `(xN identical bodies)` count in terminal and `-o` output, a
+  `duplicate_count` field on `--json` hits, and a
+  `duplicate_bodies_collapsed` stats count plus a
+  `(N duplicate body(s) collapsed)` note in the final summary — for
+  template-duplicate pages the wildcard filter cannot catch (same size is
+  not required, same first-8KB hash is). Only displayed 200 hits seed the
+  map; non-200s, hashless bodies (empty bodies, HEAD responses, responses
+  without a body reader) are never collapsed, and bodies differing only
+  past 8 KB still collapse (documented). 8 new unit tests.
 - Per-status breakdown in the final summary: hit counts per status code
   (`by status: 200: 3, 403: 1`) instead of only a total, aggregated
   across targets for multi-target runs; `--json` reports carry the same

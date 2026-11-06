@@ -4,6 +4,7 @@ import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -62,6 +63,15 @@ class ScanResult:
     # included, measured inside scan(); None when no measurement was taken
     # (e.g. results built by hand in tests or older code paths).
     latency_ms: float | None = None
+    # SHA-256 of the first 8 KB of a 200 body (None when the body was not
+    # read — non-200s, HEAD responses, empty bodies). Rows sharing a hash
+    # are collapsed into one representative row (see duplicate_count).
+    body_hash: str | None = None
+    # How many identical-body rows this representative stands for (1 when
+    # nothing was collapsed into it). Finalized by the caller from
+    # ScanSummary.duplicate_body_counts once the scan ends, since a
+    # duplicate can arrive after the representative was already printed.
+    duplicate_count: int = 1
 
 
 @dataclass(frozen=True)
@@ -76,6 +86,14 @@ class ScanSummary:
     # that pass the display filters count as hits, so wildcard-filtered
     # rows and failed requests (status None) never appear here.
     status_counts: dict[int, int] = field(default_factory=dict)
+    # Rows hidden because their 200 body hashed identically to an
+    # already-shown hit (template-duplicate pages the wildcard filter
+    # cannot catch — same size is not required, same first-8KB hash is).
+    duplicate_bodies_collapsed: int = 0
+    # Body hash -> total rows collapsed into its representative (the
+    # representative itself counts as 1), so durable outputs (-o, --json)
+    # can carry the final per-row count.
+    duplicate_body_counts: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -96,6 +114,19 @@ class FetchOutcome:
     attempts: int
     is_directory_listing: bool = False
     redirect_target: str | None = None
+    body_hash: str | None = None
+
+
+def hash_body_snippet(snippet: str) -> str | None:
+    """SHA-256 hex of a response-body snippet, or ``None`` when empty.
+
+    Empty snippets (HEAD responses, bodies without a reader, genuinely
+    empty pages) hash to nothing — without this guard every HEAD 200
+    would share one hash and collapse into a single row.
+    """
+    if not snippet:
+        return None
+    return hashlib.sha256(snippet.encode("utf-8")).hexdigest()
 
 
 def normalize_target(target: str) -> str:
@@ -569,9 +600,11 @@ async def fetch_with_retry(
     otherwise uses exponential backoff. Non-429 responses are returned
     immediately. ``aiohttp`` client errors and timeouts propagate to the
     caller. When ``inspect_body`` is set, a 200 response's first 8 KB are
-    checked for server autoindex markers (see
-    :func:`looks_like_directory_listing`); the wildcard probe leaves it
-    off since it only needs status + size. A 3xx response's ``Location``
+    read once and used for both checks derived from it: server autoindex
+    markers (see :func:`looks_like_directory_listing`) and the SHA-256
+    body hash used for duplicate-body dedupe (see
+    :func:`hash_body_snippet`); the wildcard probe leaves it off since it
+    only needs status + size. A 3xx response's ``Location``
     header is captured as ``redirect_target`` so hit output can show
     where the redirect points instead of repeating the requested URL.
     """
@@ -588,10 +621,14 @@ async def fetch_with_retry(
             status = response.status
             if status != 429 or attempt >= retries:
                 listing = False
+                body_hash = None
                 if inspect_body and status == 200:
-                    listing = looks_like_directory_listing(
-                        await _read_body_snippet(response)
-                    )
+                    # One read serves both body-derived checks; the hash
+                    # covers the same first-8KB window, so bodies that
+                    # differ only past 8 KB still collapse (documented).
+                    snippet = await _read_body_snippet(response)
+                    listing = looks_like_directory_listing(snippet)
+                    body_hash = hash_body_snippet(snippet)
                 # The Location header is the redirect's real destination:
                 # without it, a 3xx hit's "-> url" suffix just repeats the
                 # URL that was requested. Only 3xx responses carry one;
@@ -606,6 +643,7 @@ async def fetch_with_retry(
                     attempts=attempt + 1,
                     is_directory_listing=listing,
                     redirect_target=redirect_target,
+                    body_hash=body_hash,
                 )
             delay = retry_delay(attempt, parse_retry_after(response.headers.get("Retry-After")))
             await asyncio.sleep(delay)
@@ -784,6 +822,11 @@ async def enumerate_directories(
     wildcard_filtered = 0
     directory_listings = 0
     status_counts: dict[int, int] = {}
+    # Body hashes of already-shown 200 hits -> rows collapsed into each
+    # (representative included). Only displayed hits seed the map, so a
+    # row the wildcard or display filters hid never blocks a later row.
+    body_hash_counts: dict[str, int] = {}
+    duplicate_bodies_collapsed = 0
     fingerprint: WildcardFingerprint | None = None
     start_time = time.time()
     last_render_time = 0.0
@@ -846,7 +889,7 @@ async def enumerate_directories(
     rotator = UserAgentRotator() if (random_agent and not explicit_agent) else None
 
     async def scan(session: aiohttp.ClientSession, entry: str) -> ScanResult:
-        nonlocal completed, hits, wildcard_filtered, directory_listings
+        nonlocal completed, hits, wildcard_filtered, directory_listings, duplicate_bodies_collapsed
         encoded_entry = quote(entry, safe="/")
         target_url = f"{base_url}/{encoded_entry}"
         request_headers = (
@@ -890,6 +933,7 @@ async def enumerate_directories(
                 is_directory_listing=outcome.is_directory_listing,
                 redirect_target=outcome.redirect_target,
                 latency_ms=(time.monotonic() - started) * 1000,
+                body_hash=outcome.body_hash,
             )
 
         async with print_lock:
@@ -905,19 +949,34 @@ async def enumerate_directories(
                 # the user can see the filter did something.
                 wildcard_filtered += 1
             elif should_show_result(result, status_filter=status_filter, exclude_filter=exclude_filter, all_codes=all_codes, filter_lengths=filter_lengths, match_lengths=match_lengths):
-                hits += 1
-                if result.status_code is not None:
-                    status_counts[result.status_code] = (
-                        status_counts.get(result.status_code, 0) + 1
-                    )
-                if result.is_directory_listing:
-                    directory_listings += 1
-                hit = True
-                print("\r" + " " * 100 + "\r", end="")
-                if on_result is not None:
-                    on_result(result)
+                if (
+                    result.status_code == 200
+                    and result.body_hash is not None
+                    and result.body_hash in body_hash_counts
+                ):
+                    # Template-duplicate page: its first 8 KB hash matches
+                    # an already-shown hit, so it collapses into that
+                    # representative row instead of printing another line.
+                    # The representative's count is finalized from
+                    # body_hash_counts after the scan (see cli.py).
+                    duplicate_bodies_collapsed += 1
+                    body_hash_counts[result.body_hash] += 1
                 else:
-                    print(f"{result.path} {result.status_code}")
+                    if result.status_code == 200 and result.body_hash is not None:
+                        body_hash_counts[result.body_hash] = 1
+                    hits += 1
+                    if result.status_code is not None:
+                        status_counts[result.status_code] = (
+                            status_counts.get(result.status_code, 0) + 1
+                        )
+                    if result.is_directory_listing:
+                        directory_listings += 1
+                    hit = True
+                    print("\r" + " " * 100 + "\r", end="")
+                    if on_result is not None:
+                        on_result(result)
+                    else:
+                        print(f"{result.path} {result.status_code}")
             render_progress(force=completed == total)
         return result
 
@@ -998,4 +1057,6 @@ async def enumerate_directories(
         fingerprint=fingerprint,
         directory_listings=directory_listings,
         status_counts=status_counts,
+        duplicate_bodies_collapsed=duplicate_bodies_collapsed,
+        duplicate_body_counts=body_hash_counts,
     )
