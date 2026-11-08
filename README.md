@@ -45,6 +45,7 @@ Real terminal captures from an actual run (local test server — no real target 
 - **Multi-target scans** — `--targets FILE` scans several base URLs from one file (one per line, `#` comments and blanks skipped, targets normalized and deduped); each target gets its own wildcard probe, and `-o` output groups hits under `# Target: <url>` section headers
 - **Body-size filtering** — `--filter-length N` (gobuster-style) hides responses whose body size equals N, for cutting through identical-size noise; comma-separated for several sizes, applies even under `--all`
 - **Body-size matching** — `--match-length N` is the inverse: show ONLY responses whose body size equals N, for zeroing in on a known interesting size; comma-separated, combines (AND) with the status filters
+- **Path exclusion** — `--exclude-path REGEX` (repeatable) skips wordlist entries matching a regex before any request is sent, for cutting noisy subtrees (e.g. `--exclude-path '^assets/'`); matched against the entry as written, before `-x` extension expansion, so one pattern drops the whole subtree including its variants; malformed patterns fail fast
 - **Stdin path input** — `--stdin` (or `-w -`) reads candidate paths from stdin instead of a wordlist file, so DurbX pipes cleanly from other recon tools (`other-tool | durbx -u example.com --stdin`); same normalization as wordlist files (blanks, `#` comments, duplicates dropped)
 - **JSON report** — `--json report.json` writes a machine-readable final report (every hit plus an aggregate `stats` block: completed/total, hit count, wildcard-filtered count, duration) for CI and recon pipelines
 - **Per-status breakdown** — the final summary reports hit counts per status code (`by status: 200: 3, 403: 1`) instead of only a total, and `--json` carries the same breakdown as `stats.status_counts`, so the shape of a scan's results is visible at a glance
@@ -214,6 +215,7 @@ FILTERS
   --exclude               Exclude these codes (e.g. 404,500)
   --filter-length         Hide responses with these body sizes (e.g. 1234,5678)
   --match-length          Show only responses with these body sizes (e.g. 1234,5678)
+  --exclude-path          Skip wordlist entries matching a regex (repeatable; before -x expansion)
   --timeout               Request timeout in seconds (default: 3.0)
   --retries               Retry 429s with backoff (default: 3; 0 disables)
   --no-wildcard           Disable soft-404 wildcard detection
@@ -242,7 +244,7 @@ EXAMPLES
 ## 🎯 How It Works
 
 1. **URL normalization** — `example.com` → `https://example.com`
-2. **Wordlist loading** — strip whitespace/leading slashes, drop duplicates, skip `#` comments
+2. **Wordlist loading** — strip whitespace/leading slashes, drop duplicates, skip `#` comments; `--exclude-path` drops entries matching a regex before any request is sent
 3. **Wildcard probe** — a random nonexistent path is requested first; if the server answers anything other than 404, its status + body size become a soft-404 fingerprint
 4. **Concurrent scan** — a bounded `aiohttp` worker pool (size = `-t`, default 50) GETs each path and records status code, reason, and body size
 5. **Result filtering** — responses matching the wildcard fingerprint are hidden (counted in the summary); then `--status` allowlist wins; else `--all` shows everything except 404; else only `200` is shown; `--exclude` removes codes from any view

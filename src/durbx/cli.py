@@ -13,11 +13,13 @@ from .enumerator import (
     DEFAULT_USER_AGENT,
     enumerate_directories,
     expand_extensions,
+    filter_excluded_paths,
     load_checkpoint,
     load_stdin_entries,
     load_targets,
     load_wordlist,
     normalize_target,
+    parse_exclude_paths,
     parse_extensions,
     parse_filter_lengths,
     parse_headers,
@@ -63,6 +65,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--exclude", help="Exclude codes (e.g. 404,500 or ranges like 500-599)")
     parser.add_argument("--filter-length", help="Hide responses with these body sizes in bytes (e.g. 1234,5678)")
     parser.add_argument("--match-length", help="Show only responses with these body sizes in bytes (e.g. 1234,5678)")
+    parser.add_argument("--exclude-path", action="append", default=None, help="Skip wordlist entries matching this regex (repeatable; matched before -x expansion, e.g. ^assets/)")
     parser.add_argument("-a", "--all", action="store_true", help="Show all status codes (except 404)")
     parser.add_argument("--no-wildcard", action="store_true", help="Disable soft-404 wildcard detection")
     parser.add_argument("--proxy", help="Proxy URL (e.g. http://127.0.0.1:8080)")
@@ -117,6 +120,20 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("A wordlist is required: use -w/--wordlist FILE, -w -, or --stdin")
         if not entries:
             raise ValueError("No wordlist entries were loaded.")
+        # Exclude before any request is sent (and before --resume compares
+        # the expanded list against its checkpoint, so a resumed run with
+        # the same flag sees the same entries the checkpoint was written
+        # for). Matching is against the entry as written, before -x
+        # expansion, so ^assets/ also drops that subtree's variants.
+        exclude_patterns = parse_exclude_paths(args.exclude_path)
+        entries, excluded_count = filter_excluded_paths(entries, exclude_patterns)
+        if excluded_count and not args.quiet:
+            noun = "entry" if excluded_count == 1 else "entries"
+            console.print(
+                f"[dim]Excluded {excluded_count} wordlist {noun} via --exclude-path.[/dim]"
+            )
+        if not entries:
+            raise ValueError("No wordlist entries remain after --exclude-path filtering.")
         status_filter = parse_status_codes(args.status)
         exclude_filter = parse_status_codes(args.exclude)
         filter_lengths = parse_filter_lengths(args.filter_length)

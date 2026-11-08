@@ -6,6 +6,15 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--exclude-path REGEX`: repeatable flag to skip wordlist entries matching a
+  regex before any request is sent, for cutting noisy subtrees (e.g.
+  `--exclude-path '^assets/'`). Matching is against the entry as written in
+  the wordlist, before `-x` extension expansion, so one pattern drops the
+  whole subtree including its variants; the skipped count is reported
+  (`Excluded N wordlist entries via --exclude-path.`). `parse_exclude_paths()`
+  / `filter_excluded_paths()` in enumerator.py; empty or uncompilable
+  patterns fail fast with exit 2, and excluding every entry fails fast too.
+  7 new unit tests.
 - Tech-header summary: `Server` and `X-Powered-By` values seen across
   displayed hits are counted per value and reported in the final summary
   (`Tech headers: Server: nginx/1.18 (2), Apache (1); X-Powered-By:
