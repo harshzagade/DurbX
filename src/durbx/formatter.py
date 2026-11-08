@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 import json
 
 from colorama import Fore, Style, init
@@ -241,6 +243,66 @@ def render_json_report(
         "duration_seconds": round(duration, 2),
     }
     return json.dumps({"tool": "DurbX", "stats": stats, "results": results}, indent=2)
+
+
+CSV_FIELDNAMES = (
+    "target",
+    "path",
+    "url",
+    "status_code",
+    "reason",
+    "size",
+    "attempts",
+    "directory_listing",
+    "redirect_target",
+    "duplicate_count",
+    "latency_ms",
+)
+
+
+def render_csv_report(
+    hits_by_target: list[tuple[str, list[ScanResult]]],
+) -> str:
+    """CSV report for spreadsheet pipelines — one row per hit.
+
+    Same per-hit fields as the ``--json`` report (target, path, URL,
+    status, reason, size, attempts, directory listing, redirect target,
+    duplicate count, latency), so the two machine-readable outputs stay
+    interchangeable. The ``csv`` module quotes fields containing commas,
+    quotes, or newlines, so a reason like ``"Moved, Temporarily"``
+    round-trips exactly. The header row is always written, even when
+    there are no hits. No ``stats`` block: CSV is a per-hit format, and
+    the aggregate counts already live in ``--json`` and the summary.
+    """
+    buffer = io.StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=CSV_FIELDNAMES, lineterminator="\n")
+    writer.writeheader()
+    for target, target_hits in hits_by_target:
+        for hit in target_hits:
+            writer.writerow(
+                {
+                    "target": target,
+                    "path": hit.path,
+                    "url": hit.url,
+                    "status_code": (
+                        "" if hit.status_code is None else hit.status_code
+                    ),
+                    "reason": hit.reason,
+                    "size": hit.size,
+                    "attempts": hit.attempts,
+                    "directory_listing": (
+                        "true" if hit.is_directory_listing else "false"
+                    ),
+                    "redirect_target": hit.redirect_target or "",
+                    "duplicate_count": hit.duplicate_count,
+                    "latency_ms": (
+                        round(hit.latency_ms, 2)
+                        if hit.latency_ms is not None
+                        else ""
+                    ),
+                }
+            )
+    return buffer.getvalue()
 
 
 def render_results(results: list[ScanResult], status_filter: list[int] | None = None, exclude_filter: list[int] | None = None, filter_lengths: list[int] | None = None, match_lengths: list[int] | None = None) -> str:

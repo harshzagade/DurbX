@@ -48,6 +48,7 @@ Real terminal captures from an actual run (local test server — no real target 
 - **Path exclusion** — `--exclude-path REGEX` (repeatable) skips wordlist entries matching a regex before any request is sent, for cutting noisy subtrees (e.g. `--exclude-path '^assets/'`); matched against the entry as written, before `-x` extension expansion, so one pattern drops the whole subtree including its variants; malformed patterns fail fast
 - **Stdin path input** — `--stdin` (or `-w -`) reads candidate paths from stdin instead of a wordlist file, so DurbX pipes cleanly from other recon tools (`other-tool | durbx -u example.com --stdin`); same normalization as wordlist files (blanks, `#` comments, duplicates dropped)
 - **JSON report** — `--json report.json` writes a machine-readable final report (every hit plus an aggregate `stats` block: completed/total, hit count, wildcard-filtered count, duration) for CI and recon pipelines
+- **CSV report** — `--csv report.csv` writes the same hits as one row per hit (target, path, URL, status, reason, size, attempts, directory listing, redirect target, duplicate count, latency) for spreadsheet pipelines; fields with commas, quotes, or newlines are quoted so they round-trip exactly
 - **Per-status breakdown** — the final summary reports hit counts per status code (`by status: 200: 3, 403: 1`) instead of only a total, and `--json` carries the same breakdown as `stats.status_counts`, so the shape of a scan's results is visible at a glance
 - **Request latency** — every hit carries its request time (retries included), the final summary reports the average plus the 3 slowest hits, and `--json` carries `avg_latency_ms`, `slowest_hits`, and per-hit `latency_ms`, so slow paths stand out instead of hiding in the total duration
 - **Duplicate-body dedupe** — 200 responses whose first 8 KB hash identically (SHA-256) collapse into one representative row with an `(xN identical bodies)` count, for template-duplicate pages the wildcard filter cannot catch (same size is not required, same first-8KB hash is); the collapsed count is tallied in the final summary and `--json` stats, and each hit carries its `duplicate_count` (HEAD scans never dedupe, since HEAD responses carry no body)
@@ -226,6 +227,7 @@ OUTPUT & LOGGING
   -o, --output            Save hits to a file
   --append                Append hits to the -o file instead of overwriting it
   --json                  Save a machine-readable JSON report (hits + stats) to a file
+  --csv                   Save a CSV report (one row per hit) to a file
   --checkpoint            Write resume checkpoints during the scan (single-target)
   --resume                Resume an interrupted scan from a checkpoint (single-target)
   -v, --verbose           Enable detailed logging

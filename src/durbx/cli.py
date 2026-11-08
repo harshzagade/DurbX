@@ -33,6 +33,7 @@ from .formatter import (
     format_result,
     format_status_breakdown,
     format_tech_headers_summary,
+    render_csv_report,
     render_json_report,
     render_latency_summary,
     render_plain_results,
@@ -72,6 +73,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-o", "--output", help="Save discovered hits to a file")
     parser.add_argument("--append", action="store_true", help="Append hits to the -o/--output file instead of overwriting it (requires -o)")
     parser.add_argument("--json", metavar="FILE", help="Save a machine-readable JSON report (hits + stats) to a file")
+    parser.add_argument("--csv", metavar="FILE", help="Save a CSV report (one row per hit) to a file")
     parser.add_argument("--checkpoint", metavar="FILE", help="Write resume checkpoints during the scan (single-target runs)")
     parser.add_argument("--resume", metavar="FILE", help="Resume an interrupted scan from a checkpoint file (single-target)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
@@ -312,6 +314,16 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         if not args.quiet:
             console.print(f"[dim]Saved JSON report to {args.json}[/dim]")
+
+    if args.csv:
+        try:
+            with open(args.csv, "w", encoding="utf-8", newline="") as handle:
+                handle.write(render_csv_report(hits_by_target))
+        except OSError as exc:
+            log.error(f"[bold red]✗[/bold red] Could not write CSV report: {exc}")
+            return 2
+        if not args.quiet:
+            console.print(f"[dim]Saved CSV report to {args.csv}[/dim]")
 
     if not args.quiet:
         total_hits = sum(summary.hits for summary in summaries)

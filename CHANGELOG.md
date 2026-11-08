@@ -6,6 +6,14 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--csv FILE`: CSV report (one row per hit) alongside `--json`, for
+  spreadsheet pipelines. `render_csv_report()` in formatter.py carries the
+  same per-hit fields as the JSON report (target, path, URL, status, reason,
+  size, attempts, directory listing, redirect target, duplicate count,
+  latency); the `csv` module quotes fields containing commas, quotes, or
+  newlines so they round-trip exactly, and the header row is always written
+  even with no hits. An unwritable path fails fast with exit 2.
+  6 new unit tests.
 - `--exclude-path REGEX`: repeatable flag to skip wordlist entries matching a
   regex before any request is sent, for cutting noisy subtrees (e.g.
   `--exclude-path '^assets/'`). Matching is against the entry as written in
