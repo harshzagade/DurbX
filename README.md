@@ -36,7 +36,7 @@ Real terminal captures from an actual run (local test server — no real target 
 - **Output modes** — verbose logging (`-v`) for debugging, quiet mode (`-q`) that suppresses the banner and summary lines for cleaner piped output, `-o/--output` to save hits to a file (`--append` accumulates across runs instead of overwriting)
 - **Directory-listing detection** — 200 responses whose body looks like a server autoindex page (`<title>`/`<h1>` "Index of /...") are flagged `(directory listing)` in terminal, `-o`, and `--json` output, with a count in the final summary (HEAD scans cannot flag listings, since HEAD responses carry no body)
 - **Graceful errors** — connection errors and timeouts are caught per-request; `Ctrl+C` exits cleanly
-- **Rate-limit handling** — backs off and retries HTTP 429 responses (exponential backoff, honors the server's `Retry-After` header in both delta-seconds and HTTP-date forms); tune with `--retries`; hits that needed retries are marked `(retried N)` in terminal, `-o`, and `--json` output so rate-limit pressure stays visible instead of silent
+- **Rate-limit handling** — backs off and retries HTTP 429 responses (exponential backoff, honors the server's `Retry-After` header in both delta-seconds and HTTP-date forms); `--retry-on 500,502,503` extends the same backoff/`Retry-After` handling to transient server errors (ranges like `500-599` accepted); tune the retry count with `--retries`; hits that needed retries are marked `(retried N)` in terminal, `-o`, and `--json` output so rate-limit pressure stays visible instead of silent
 - **Stealth controls** — `--delay` pauses each worker between requests for slower, quieter scans on rate-limited targets; `--rate-limit RPS` caps the global request rate across all workers via a shared token bucket, for targets with strict server-side limits; `--user-agent` overrides the default `DurbX/0.1` User-Agent header; `--random-agent` rotates the User-Agent per scan request from a built-in list of common browser agents (overrides `--user-agent`; an explicit `-H User-Agent` header still wins; the soft-404 probe keeps the session agent)
 - **HTTP method choice** — `-m/--method GET|HEAD|POST` swaps the request verb instead of hard-coding GET (HEAD is lighter on big targets; POST catches methods-only endpoints)
 - **Redirect following** — `--follow-redirects` follows 3xx responses instead of reporting the redirect itself, so results reflect the final status (the soft-404 probe follows the same policy so filtering stays consistent); without it, 3xx hits show the captured `Location` header as their destination instead of repeating the requested URL, and `--json` carries it as `redirect_target`
@@ -113,6 +113,9 @@ durbx -u https://example.com -w wordlist.txt --timeout 5
 
 # Control 429 retry behavior (default: 3 retries with backoff; 0 disables)
 durbx -u https://example.com -w wordlist.txt --retries 5
+
+# Retry transient server errors too, with the same backoff/Retry-After handling
+durbx -u https://example.com -w wordlist.txt --retry-on 500,502,503
 
 # Stealthy scan: 0.5s pause between requests per worker
 durbx -u https://example.com -w wordlist.txt --delay 0.5
@@ -218,7 +221,8 @@ FILTERS
   --match-length          Show only responses with these body sizes (e.g. 1234,5678)
   --exclude-path          Skip wordlist entries matching a regex (repeatable; before -x expansion)
   --timeout               Request timeout in seconds (default: 3.0)
-  --retries               Retry 429s with backoff (default: 3; 0 disables)
+  --retries               Retry retryable statuses with backoff (default: 3; 0 disables)
+  --retry-on              Statuses to retry like 429 (e.g. 500,502,503; default: 429 only)
   --no-wildcard           Disable soft-404 wildcard detection
   --follow-redirects      Follow 3xx redirects (default: report them)
 

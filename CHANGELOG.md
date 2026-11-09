@@ -6,6 +6,13 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--retry-on CODES`: retry 500/502/503 (or user-given codes, ranges like
+  `500-599` accepted) with the same exponential backoff and `Retry-After`
+  handling as 429, instead of only retrying 429. `fetch_with_retry()` takes
+  a `retry_on` tuple (default `(429,)`), threaded through
+  `detect_wildcard()` and `enumerate_directories()`; the CLI parses it with
+  the existing status-code list grammar (bad codes fail fast with exit 2).
+  10 new unit tests.
 - `--csv FILE`: CSV report (one row per hit) alongside `--json`, for
   spreadsheet pipelines. `render_csv_report()` in formatter.py carries the
   same per-hit fields as the JSON report (target, path, URL, status, reason,

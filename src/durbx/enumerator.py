@@ -642,15 +642,18 @@ async def fetch_with_retry(
     proxy: str | None = None,
     inspect_body: bool = False,
     headers: dict[str, str] | None = None,
+    retry_on: tuple[int, ...] = (429,),
 ) -> FetchOutcome:
-    """Request ``url`` with ``method``, backing off and retrying on HTTP 429.
+    """Request ``url`` with ``method``, backing off and retrying on retryable statuses.
 
     Retries up to ``max_retries`` times after the first attempt (0 disables
-    retrying). Waits out the server's ``Retry-After`` header when present,
-    otherwise uses exponential backoff. Non-429 responses are returned
-    immediately. ``aiohttp`` client errors and timeouts propagate to the
-    caller. When ``inspect_body`` is set, a 200 response's first 8 KB are
-    read once and used for both checks derived from it: server autoindex
+    retrying) when the response status is in ``retry_on`` — ``(429,)`` by
+    default, so ``--retry-on 500,502,503`` also retries transient server
+    errors with the same backoff. Waits out the server's ``Retry-After``
+    header when present, otherwise uses exponential backoff. Other statuses
+    are returned immediately. ``aiohttp`` client errors and timeouts propagate
+    to the caller. When ``inspect_body`` is set, a 200 response's first 8 KB
+    are read once and used for both checks derived from it: server autoindex
     markers (see :func:`looks_like_directory_listing`) and the SHA-256
     body hash used for duplicate-body dedupe (see
     :func:`hash_body_snippet`); the wildcard probe leaves it off since it
@@ -671,7 +674,7 @@ async def fetch_with_retry(
             request_kwargs["headers"] = headers
         async with session.request(method, url, **request_kwargs) as response:
             status = response.status
-            if status != 429 or attempt >= retries:
+            if status not in retry_on or attempt >= retries:
                 listing = False
                 body_hash = None
                 if inspect_body and status == 200:
@@ -762,6 +765,7 @@ async def detect_wildcard(
     max_retries: int,
     allow_redirects: bool = False,
     proxy: str | None = None,
+    retry_on: tuple[int, ...] = (429,),
 ) -> WildcardFingerprint | None:
     """Probe a random nonexistent path to fingerprint soft-404 behavior.
 
@@ -781,6 +785,7 @@ async def detect_wildcard(
             max_retries=max_retries,
             allow_redirects=allow_redirects,
             proxy=proxy,
+            retry_on=retry_on,
         )
     except (aiohttp.ClientError, asyncio.TimeoutError):
         return None
@@ -864,11 +869,15 @@ async def enumerate_directories(
     resume_completed: list[str] | None = None,
     rate_limit: float | None = None,
     random_agent: bool = False,
+    retry_on: tuple[int, ...] | None = None,
 ) -> ScanSummary:
     status_filter = status_filter or []
     exclude_filter = exclude_filter or []
     filter_lengths = filter_lengths or []
     match_lengths = match_lengths or []
+    # None means "only 429" — the historical default; an explicit empty
+    # tuple would mean "never retry", which --retries 0 already covers.
+    retry_on = retry_on if retry_on is not None else (429,)
     entries = expand_extensions(entries, extensions or [])
     total = len(entries) + len(resume_completed or [])
     completed = 0
@@ -965,6 +974,7 @@ async def enumerate_directories(
                 proxy=proxy,
                 inspect_body=True,
                 headers=request_headers,
+                retry_on=retry_on,
             )
         except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
             detail = str(exc).strip()
@@ -1094,6 +1104,7 @@ async def enumerate_directories(
                 max_retries=max_retries,
                 allow_redirects=follow_redirects,
                 proxy=proxy,
+                retry_on=retry_on,
             )
             if fingerprint is not None:
                 print(
