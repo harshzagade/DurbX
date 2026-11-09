@@ -6,6 +6,19 @@ from rich.table import Table
 
 console = Console()
 
+
+def set_no_color() -> Console:
+    """Replace the shared console with one that emits no ANSI colors.
+
+    Used by ``--no-color``: the banner, hit lines, and summary keep
+    printing (unlike ``-q``, which suppresses them) — just without color,
+    for clean piped logs. Returns the new console so callers that
+    imported the old one by value (``cli.py``) can rebind theirs too.
+    """
+    global console
+    console = Console(no_color=True)
+    return console
+
 LOGO = r"""
 [bold blue]    ____             __   _  __[/bold blue]   [bold white]DurbX[/bold white] [dim]v0.1.0[/dim]
 [bold blue]   / __ \__  _______/ /_ | |/ /[/bold blue]   [dim]Advanced Directory Discovery[/dim]
@@ -85,6 +98,7 @@ def print_help():
             ("--resume", "Resume an interrupted scan from a checkpoint [dim](single-target)[/dim]"),
             ("-v, --verbose", "Enable detailed logging"),
             ("-q, --quiet", "Minimal output mode"),
+            ("--no-color", "Disable ANSI colors in terminal output [dim](banner, hits, summary; unlike -q, output still prints)[/dim]"),
             ("-h, --help", "Show this help message"),
         ]
     }

@@ -38,7 +38,7 @@ from .formatter import (
     render_latency_summary,
     render_plain_results,
 )
-from .utils import LOGO, setup_logging, console, print_help
+from .utils import LOGO, set_no_color, setup_logging, console, print_help
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -79,25 +79,35 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--resume", metavar="FILE", help="Resume an interrupted scan from a checkpoint file (single-target)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
     parser.add_argument("-q", "--quiet", action="store_true", help="Minimal output mode")
+    parser.add_argument("--no-color", action="store_true", help="Disable ANSI colors in terminal output (banner, hit lines, summary) without suppressing output like -q")
     parser.add_argument("-h", "--help", action="store_true", help="Show help")
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
+    global console
     parser = build_parser()
-    
+
     # Check for help early to skip required validation
     if "-h" in sys.argv or "--help" in sys.argv:
+        if "--no-color" in sys.argv:
+            set_no_color()
         print_help()
         return 0
 
     try:
         args = parser.parse_args(argv)
     except SystemExit:
-        # If parse fails (missing args), but help wasn't requested, 
+        # If parse fails (missing args), but help wasn't requested,
         # let argparse handle the error message.
         return 2
-    
+
+    if args.no_color:
+        # Rebind this module's console (imported by value) so banner,
+        # hit lines, and summary print without ANSI colors; setup_logging
+        # below picks up the same rebound console from utils.
+        console = set_no_color()
+
     log = setup_logging(args.verbose, args.quiet)
 
     try:
@@ -213,7 +223,7 @@ def main(argv: list[str] | None = None) -> int:
 
     def record_hit(result) -> None:
         hits.append(result)
-        console.print(format_result(result), highlight=False)
+        console.print(format_result(result, color=not args.no_color), highlight=False)
 
     try:
         for index, base_url in enumerate(base_urls, start=1):

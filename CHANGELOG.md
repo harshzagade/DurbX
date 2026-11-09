@@ -6,6 +6,13 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--no-color`: disable ANSI colors in terminal output (banner, hit lines,
+  summary) without suppressing any output the way `-q` does, for clean
+  piped logs. `format_result()` / `render_results()` take a `color=False`
+  flag (the plain line is byte-identical to the `-o` output), and
+  `utils.set_no_color()` swaps the shared rich console for a no-color one
+  (also honored by `--help`). 9 new unit tests; the conftest rich stub
+  Console now accepts constructor kwargs and records `no_color`.
 - `--retry-on CODES`: retry 500/502/503 (or user-given codes, ranges like
   `500-599` accepted) with the same exponential backoff and `Retry-After`
   handling as 429, instead of only retrying 429. `fetch_with_retry()` takes

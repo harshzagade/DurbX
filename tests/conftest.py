@@ -115,6 +115,11 @@ def _make_rich_stubs() -> None:
     table_mod = types.ModuleType("rich.table")
 
     class Console:
+        def __init__(self, *args, **kwargs) -> None:
+            # Real rich accepts no_color=True; record it so --no-color
+            # tests can assert the flag reached the console.
+            self.no_color = kwargs.get("no_color", False)
+
         def print(self, *args, **kwargs) -> None:
             pass
 

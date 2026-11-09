@@ -77,13 +77,21 @@ def _url_suffix(result: ScanResult) -> str:
     return ""
 
 
-def format_result(result: ScanResult) -> str:
+def format_result(result: ScanResult, *, color: bool = True) -> str:
+    """One color-coded hit line for the terminal.
+
+    ``color=False`` (``--no-color``) returns the same text with no ANSI
+    escapes, so piped logs stay clean without suppressing the hit the
+    way ``-q`` does. The plain line is identical to
+    :func:`plain_result_line`, which the ``-o`` output already uses.
+    """
     status = str(result.status_code) if result.status_code is not None else "-"
     size = f"{result.size}B"
-    color = _color_for_status(result.status_code)
     line = f"{result.path:<20} {status:<5} {size:<10}{_retry_note(result)}{_listing_note(result)}{_duplicate_note(result)}"
     line += _url_suffix(result)
-    return color + line + Style.RESET_ALL
+    if not color:
+        return line
+    return _color_for_status(result.status_code) + line + Style.RESET_ALL
 
 
 def plain_result_line(result: ScanResult) -> str:
@@ -305,7 +313,7 @@ def render_csv_report(
     return buffer.getvalue()
 
 
-def render_results(results: list[ScanResult], status_filter: list[int] | None = None, exclude_filter: list[int] | None = None, filter_lengths: list[int] | None = None, match_lengths: list[int] | None = None) -> str:
+def render_results(results: list[ScanResult], status_filter: list[int] | None = None, exclude_filter: list[int] | None = None, filter_lengths: list[int] | None = None, match_lengths: list[int] | None = None, *, color: bool = True) -> str:
     status_filter = status_filter or []
     exclude_filter = exclude_filter or []
     filter_lengths = filter_lengths or []
@@ -319,6 +327,9 @@ def render_results(results: list[ScanResult], status_filter: list[int] | None = 
     if not visible:
         return "No directories discovered."
 
-    lines = [f"{Style.BRIGHT}{'PATH':<20} {'CODE':<5} {'SIZE':<10} RESULT{Style.RESET_ALL}"]
-    lines.extend(format_result(result) for result in visible)
+    header = f"{'PATH':<20} {'CODE':<5} {'SIZE':<10} RESULT"
+    if color:
+        header = f"{Style.BRIGHT}{header}{Style.RESET_ALL}"
+    lines = [header]
+    lines.extend(format_result(result, color=color) for result in visible)
     return "\n".join(lines)
