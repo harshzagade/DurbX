@@ -196,6 +196,26 @@ def sort_hits_by_path(hits: list[ScanResult]) -> list[ScanResult]:
     return sorted(hits, key=lambda hit: (hit.path.lower(), hit.path))
 
 
+def _hit_to_dict(target: str, hit: ScanResult) -> dict:
+    """One hit as a plain dict — the shared per-hit record for the JSON
+    and JSONL reports, so both outputs always carry the same fields."""
+    return {
+        "target": target,
+        "path": hit.path,
+        "url": hit.url,
+        "status_code": hit.status_code,
+        "reason": hit.reason,
+        "size": hit.size,
+        "attempts": hit.attempts,
+        "directory_listing": hit.is_directory_listing,
+        "redirect_target": hit.redirect_target,
+        "duplicate_count": hit.duplicate_count,
+        "latency_ms": (
+            round(hit.latency_ms, 2) if hit.latency_ms is not None else None
+        ),
+    }
+
+
 def render_json_report(
     hits_by_target: list[tuple[str, list[ScanResult]]],
     summaries: list[ScanSummary],
@@ -212,25 +232,7 @@ def render_json_report(
     results: list[dict] = []
     for target, target_hits in hits_by_target:
         for hit in target_hits:
-            results.append(
-                {
-                    "target": target,
-                    "path": hit.path,
-                    "url": hit.url,
-                    "status_code": hit.status_code,
-                    "reason": hit.reason,
-                    "size": hit.size,
-                    "attempts": hit.attempts,
-                    "directory_listing": hit.is_directory_listing,
-                    "redirect_target": hit.redirect_target,
-                    "duplicate_count": hit.duplicate_count,
-                    "latency_ms": (
-                        round(hit.latency_ms, 2)
-                        if hit.latency_ms is not None
-                        else None
-                    ),
-                }
-            )
+            results.append(_hit_to_dict(target, hit))
     all_hits = [hit for _, target_hits in hits_by_target for hit in target_hits]
     measured = [hit for hit in all_hits if hit.latency_ms is not None]
     stats = {
@@ -263,6 +265,26 @@ def render_json_report(
         "duration_seconds": round(duration, 2),
     }
     return json.dumps({"tool": "DurbX", "stats": stats, "results": results}, indent=2)
+
+
+def render_jsonl_report(
+    hits_by_target: list[tuple[str, list[ScanResult]]],
+) -> str:
+    """JSON Lines report for streaming pipelines — one JSON object per hit.
+
+    Each line is exactly the per-hit dict from the ``--json`` report
+    (same fields, via :func:`_hit_to_dict`), so a consumer can switch
+    between the two formats without re-mapping fields. No ``stats``
+    block: JSONL is a per-hit format, and the aggregate counts already
+    live in ``--json`` and the summary. An empty hit list renders as an
+    empty string (no header line, no trailing newline).
+    """
+    lines = [
+        json.dumps(_hit_to_dict(target, hit))
+        for target, target_hits in hits_by_target
+        for hit in target_hits
+    ]
+    return "\n".join(lines) + ("\n" if lines else "")
 
 
 CSV_FIELDNAMES = (
