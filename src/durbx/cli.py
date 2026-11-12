@@ -37,6 +37,7 @@ from .formatter import (
     render_json_report,
     render_latency_summary,
     render_plain_results,
+    sort_hits_by_path,
 )
 from .utils import LOGO, set_no_color, setup_logging, console, print_help
 
@@ -75,6 +76,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--append", action="store_true", help="Append hits to the -o/--output file instead of overwriting it (requires -o)")
     parser.add_argument("--json", metavar="FILE", help="Save a machine-readable JSON report (hits + stats) to a file")
     parser.add_argument("--csv", metavar="FILE", help="Save a CSV report (one row per hit) to a file")
+    parser.add_argument("--sort", action="store_true", help="Sort hits by path in -o/--json/--csv output instead of completion order (per target)")
     parser.add_argument("--checkpoint", metavar="FILE", help="Write resume checkpoints during the scan (single-target runs)")
     parser.add_argument("--resume", metavar="FILE", help="Resume an interrupted scan from a checkpoint file (single-target)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
@@ -287,6 +289,17 @@ def main(argv: list[str] | None = None) -> int:
         )
     hits_by_target = refreshed_hits_by_target
     hits = [hit for _, target_hits in hits_by_target for hit in target_hits]
+
+    if args.sort:
+        # Sort within each target so multi-target runs keep their
+        # per-target groups (and the -o "# Target:" section headers stay
+        # aligned); the live terminal lines already printed in completion
+        # order and are untouched.
+        hits_by_target = [
+            (target, sort_hits_by_path(target_hits))
+            for target, target_hits in hits_by_target
+        ]
+        hits = [hit for _, target_hits in hits_by_target for hit in target_hits]
 
     if args.output:
         try:

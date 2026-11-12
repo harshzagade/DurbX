@@ -184,6 +184,18 @@ def render_latency_summary(hits: list[ScanResult]) -> str | None:
     return f"avg {average:.1f}ms; slowest: {slowest_text}"
 
 
+def sort_hits_by_path(hits: list[ScanResult]) -> list[ScanResult]:
+    """Return hits ordered by path (case-insensitive, exact path as tie-break).
+
+    Scans complete in worker order, so repeated runs diff noisily; sorting
+    by path makes ``-o``/``--json``/``--csv`` output deterministic. The
+    live terminal lines keep completion order — only the durable outputs
+    are sorted, and only when the caller asks (``--sort``). Sorting is
+    per target: multi-target runs keep their per-target groups.
+    """
+    return sorted(hits, key=lambda hit: (hit.path.lower(), hit.path))
+
+
 def render_json_report(
     hits_by_target: list[tuple[str, list[ScanResult]]],
     summaries: list[ScanSummary],

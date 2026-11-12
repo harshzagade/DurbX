@@ -6,6 +6,10 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--sort`: sort hits by path (case-insensitive, per target) in `-o`/`--json`/
+  `--csv` output instead of worker completion order, so repeated
+  runs diff cleanly. `sort_hits_by_path()` in formatter.py; the live
+  terminal lines still print in completion order. 8 new unit tests.
 - `--no-color`: disable ANSI colors in terminal output (banner, hit lines,
   summary) without suppressing any output the way `-q` does, for clean
   piped logs. `format_result()` / `render_results()` take a `color=False`
