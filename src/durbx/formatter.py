@@ -57,6 +57,22 @@ def _duplicate_note(result: ScanResult) -> str:
     return ""
 
 
+_TITLE_MAX_LEN = 60
+
+
+def _title_note(result: ScanResult) -> str:
+    """`` (title: ...)`` suffix for hits whose 200 body carried a
+    ``<title>``; hits without one render exactly as before. Long titles
+    are cut to 60 characters with an ellipsis so one noisy page cannot
+    stretch the hit line across the terminal."""
+    if not result.page_title:
+        return ""
+    title = result.page_title
+    if len(title) > _TITLE_MAX_LEN:
+        title = title[:_TITLE_MAX_LEN] + "..."
+    return f" (title: {title})"
+
+
 def _url_suffix(result: ScanResult) -> str:
     """`` -> <destination>`` suffix for hits that carry a URL worth showing.
 
@@ -87,7 +103,7 @@ def format_result(result: ScanResult, *, color: bool = True) -> str:
     """
     status = str(result.status_code) if result.status_code is not None else "-"
     size = f"{result.size}B"
-    line = f"{result.path:<20} {status:<5} {size:<10}{_retry_note(result)}{_listing_note(result)}{_duplicate_note(result)}"
+    line = f"{result.path:<20} {status:<5} {size:<10}{_retry_note(result)}{_listing_note(result)}{_duplicate_note(result)}{_title_note(result)}"
     line += _url_suffix(result)
     if not color:
         return line
@@ -98,7 +114,7 @@ def plain_result_line(result: ScanResult) -> str:
     """Single-line hit without ANSI colors, for output files and piping."""
     status = str(result.status_code) if result.status_code is not None else "-"
     size = f"{result.size}B"
-    line = f"{result.path:<20} {status:<5} {size:<10}{_retry_note(result)}{_listing_note(result)}{_duplicate_note(result)}"
+    line = f"{result.path:<20} {status:<5} {size:<10}{_retry_note(result)}{_listing_note(result)}{_duplicate_note(result)}{_title_note(result)}"
     line += _url_suffix(result)
     return line
 
@@ -210,6 +226,7 @@ def _hit_to_dict(target: str, hit: ScanResult) -> dict:
         "directory_listing": hit.is_directory_listing,
         "redirect_target": hit.redirect_target,
         "duplicate_count": hit.duplicate_count,
+        "page_title": hit.page_title,
         "latency_ms": (
             round(hit.latency_ms, 2) if hit.latency_ms is not None else None
         ),
@@ -224,7 +241,7 @@ def render_json_report(
     """Machine-readable JSON report for pipelines.
 
     Carries every hit (target, path, URL, status, reason, size, request
-    attempts, redirect target) plus an
+    attempts, redirect target, page title) plus an
     aggregate ``stats`` block — completed/total counts, hit count,
     wildcard-filtered count, and scan duration — so CI and recon pipelines
     can consume results without parsing terminal output.
@@ -298,6 +315,7 @@ CSV_FIELDNAMES = (
     "directory_listing",
     "redirect_target",
     "duplicate_count",
+    "page_title",
     "latency_ms",
 )
 
@@ -337,6 +355,7 @@ def render_csv_report(
                     ),
                     "redirect_target": hit.redirect_target or "",
                     "duplicate_count": hit.duplicate_count,
+                    "page_title": hit.page_title or "",
                     "latency_ms": (
                         round(hit.latency_ms, 2)
                         if hit.latency_ms is not None

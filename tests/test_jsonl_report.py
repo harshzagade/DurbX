@@ -60,6 +60,7 @@ def test_render_jsonl_report_one_object_per_hit() -> None:
         "directory_listing": False,
         "redirect_target": None,
         "duplicate_count": 1,
+        "page_title": None,
         "latency_ms": 12.35,
     }
     assert rows[1]["status_code"] == 301

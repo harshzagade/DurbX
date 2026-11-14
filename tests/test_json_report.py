@@ -53,6 +53,7 @@ def test_render_json_report_structure() -> None:
         "directory_listing": False,
         "redirect_target": None,
         "duplicate_count": 1,
+        "page_title": None,
         "latency_ms": None,
     }
 

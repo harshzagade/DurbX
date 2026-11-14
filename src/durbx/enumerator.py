@@ -72,6 +72,9 @@ class ScanResult:
     # ScanSummary.duplicate_body_counts once the scan ends, since a
     # duplicate can arrive after the representative was already printed.
     duplicate_count: int = 1
+    # The page's <title> (None when the 200 body had none — non-200s,
+    # HEAD responses and empty bodies never carry one).
+    page_title: str | None = None
 
 
 @dataclass(frozen=True)
@@ -121,6 +124,7 @@ class FetchOutcome:
     body_hash: str | None = None
     server: str | None = None
     powered_by: str | None = None
+    page_title: str | None = None
 
 
 def hash_body_snippet(snippet: str) -> str | None:
@@ -653,10 +657,11 @@ async def fetch_with_retry(
     header when present, otherwise uses exponential backoff. Other statuses
     are returned immediately. ``aiohttp`` client errors and timeouts propagate
     to the caller. When ``inspect_body`` is set, a 200 response's first 8 KB
-    are read once and used for both checks derived from it: server autoindex
-    markers (see :func:`looks_like_directory_listing`) and the SHA-256
+    are read once and used for every check derived from it: server autoindex
+    markers (see :func:`looks_like_directory_listing`), the SHA-256
     body hash used for duplicate-body dedupe (see
-    :func:`hash_body_snippet`); the wildcard probe leaves it off since it
+    :func:`hash_body_snippet`), and the page title (see
+    :func:`extract_page_title`); the wildcard probe leaves it off since it
     only needs status + size. A 3xx response's ``Location``
     header is captured as ``redirect_target`` so hit output can show
     where the redirect points instead of repeating the requested URL.
@@ -677,13 +682,15 @@ async def fetch_with_retry(
             if status not in retry_on or attempt >= retries:
                 listing = False
                 body_hash = None
+                page_title = None
                 if inspect_body and status == 200:
-                    # One read serves both body-derived checks; the hash
-                    # covers the same first-8KB window, so bodies that
-                    # differ only past 8 KB still collapse (documented).
+                    # One read serves all body-derived checks; the title
+                    # comes from the same first-8KB window, so no second
+                    # fetch is ever needed to name the page.
                     snippet = await _read_body_snippet(response)
                     listing = looks_like_directory_listing(snippet)
                     body_hash = hash_body_snippet(snippet)
+                    page_title = extract_page_title(snippet)
                 # The Location header is the redirect's real destination:
                 # without it, a 3xx hit's "-> url" suffix just repeats the
                 # URL that was requested. Only 3xx responses carry one;
@@ -701,6 +708,7 @@ async def fetch_with_retry(
                     body_hash=body_hash,
                     server=response.headers.get("Server") or None,
                     powered_by=response.headers.get("X-Powered-By") or None,
+                    page_title=page_title,
                 )
             delay = retry_delay(attempt, parse_retry_after(response.headers.get("Retry-After")))
             await asyncio.sleep(delay)
@@ -729,6 +737,31 @@ def looks_like_directory_listing(body_text: str) -> bool:
     if not body_text:
         return False
     return any(pattern.search(body_text) for pattern in _DIRECTORY_LISTING_PATTERNS)
+
+
+_TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def extract_page_title(body_text: str) -> str | None:
+    """The page's ``<title>`` text, or ``None`` when there is none.
+
+    The first ``<title>...</title>`` wins; inner markup (rare, but
+    possible in sloppy pages) is stripped, and runs of whitespace
+    collapse to single spaces so a multi-line title still renders on
+    one line. An empty or whitespace-only title counts as no title.
+    Only the first 8 KB of the body are ever inspected (the same window
+    as the listing/hash checks), so a title past that window is missed —
+    titles live in ``<head>`` in practice, so this almost never bites.
+    """
+    if not body_text:
+        return None
+    match = _TITLE_RE.search(body_text)
+    if match is None:
+        return None
+    title = _TAG_RE.sub("", match.group(1))
+    title = re.sub(r"\s+", " ", title).strip()
+    return title or None
 
 
 async def _read_body_snippet(response) -> str:
@@ -1002,6 +1035,7 @@ async def enumerate_directories(
                 redirect_target=outcome.redirect_target,
                 latency_ms=(time.monotonic() - started) * 1000,
                 body_hash=outcome.body_hash,
+                page_title=outcome.page_title,
             )
             seen_server = outcome.server
             seen_powered_by = outcome.powered_by

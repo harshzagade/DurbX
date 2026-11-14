@@ -56,6 +56,7 @@ def test_render_csv_report_header_and_rows() -> None:
         "directory_listing": "false",
         "redirect_target": "",
         "duplicate_count": "1",
+        "page_title": "",
         "latency_ms": "12.35",
     }
     assert rows[1]["status_code"] == "301"

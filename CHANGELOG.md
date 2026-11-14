@@ -6,6 +6,12 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Page-title capture: `extract_page_title()` in enumerator.py reads the
+  `<title>` from the same first-8KB 200-body snippet that feeds the
+  directory-listing and body-hash checks (no second fetch); shown as
+  `(title: ...)` in terminal and `-o` output (cut to 60 chars) and
+  carried as `page_title` in `--json`/`--jsonl`/`--csv` output.
+  6 new unit tests.
 - `--sort`: sort hits by path (case-insensitive, per target) in `-o`/`--json`/
   `--jsonl`/`--csv` output instead of worker completion order, so repeated
   runs diff cleanly. `sort_hits_by_path()` in formatter.py; the live
