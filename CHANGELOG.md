@@ -6,6 +6,11 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--fail-on CODES`: exit 1 when a displayed hit matches the given status
+  codes (lists and ranges like `500-599` accepted via the existing
+  status-code grammar; bad codes fail fast with exit 2), so CI pipelines
+  can gate on findings. All outputs are written before the exit code is
+  returned, and the gate fires in quiet mode too. 5 new unit tests.
 - Page-title capture: `extract_page_title()` in enumerator.py reads the
   `<title>` from the same first-8KB 200-body snippet that feeds the
   directory-listing and body-hash checks (no second fetch); shown as

@@ -79,6 +79,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--jsonl", metavar="FILE", help="Save a JSON Lines report (one JSON object per hit) to a file")
     parser.add_argument("--csv", metavar="FILE", help="Save a CSV report (one row per hit) to a file")
     parser.add_argument("--sort", action="store_true", help="Sort hits by path in -o/--json/--jsonl/--csv output instead of completion order (per target)")
+    parser.add_argument("--fail-on", help="Exit non-zero when a hit matches these status codes (e.g. 200 or 200,403; ranges like 500-599), so CI pipelines can gate on findings")
     parser.add_argument("--checkpoint", metavar="FILE", help="Write resume checkpoints during the scan (single-target runs)")
     parser.add_argument("--resume", metavar="FILE", help="Resume an interrupted scan from a checkpoint file (single-target)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
@@ -162,6 +163,7 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("--append requires -o/--output")
         rate_limit = parse_rate_limit(args.rate_limit)
         retry_on = tuple(parse_status_codes(args.retry_on)) or (429,)
+        fail_on = set(parse_status_codes(args.fail_on))
         user_agent = args.user_agent
         if not user_agent or not user_agent.strip():
             raise ValueError("--user-agent must not be empty")
@@ -404,7 +406,26 @@ def main(argv: list[str] | None = None) -> int:
         if tech_summary:
             console.print(f"[dim]Tech headers: {tech_summary}[/dim]")
         console.print(f"[dim]Progress: {total_completed} / {total_scanned} (100.00%)[/dim]")
-    
+
+    if fail_on:
+        # CI gate: any displayed hit whose status is in --fail-on fails
+        # the run. Checked after every output is written, so the reports
+        # still land even when the exit code is 1; the code, not the
+        # message, is the signal, so it fires in quiet mode too.
+        matched = [hit for hit in hits if hit.status_code in fail_on]
+        if matched:
+            matched_codes = ", ".join(
+                str(code)
+                for code in sorted({hit.status_code for hit in matched})
+            )
+            noun = "hit" if len(matched) == 1 else "hits"
+            if not args.quiet:
+                console.print(
+                    f"[bold red][!] {len(matched)} {noun} matched --fail-on "
+                    f"({matched_codes}). Exiting 1.[/bold red]"
+                )
+            return 1
+
     return 0
 
 

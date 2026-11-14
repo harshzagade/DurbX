@@ -96,6 +96,7 @@ def print_help():
             ("--jsonl", "Save a JSON Lines report (one JSON object per hit) to a file"),
             ("--csv", "Save a CSV report (one row per hit) to a file"),
             ("--sort", "Sort hits by path in -o/--json/--jsonl/--csv output [dim](per target; live terminal lines stay in completion order)[/dim]"),
+            ("--fail-on", "Exit non-zero when a hit matches these codes [dim](e.g. 200; ranges like 500-599; for CI gates)[/dim]"),
             ("--checkpoint", "Write resume checkpoints during the scan [dim](single-target)[/dim]"),
             ("--resume", "Resume an interrupted scan from a checkpoint [dim](single-target)[/dim]"),
             ("-v, --verbose", "Enable detailed logging"),
