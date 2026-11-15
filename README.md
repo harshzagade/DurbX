@@ -33,7 +33,7 @@ Real terminal captures from an actual run (local test server — no real target 
 - **Extension probing** — `-x php,html` requests each word plus its extension variants (e.g. `/admin`, `/admin.php`, `/admin.html`)
 - **URL normalization** — `example.com` becomes `https://example.com` automatically
 - **Proxy support** — route traffic through an HTTP proxy (e.g. Burp Suite) with `--proxy`
-- **Output modes** — verbose logging (`-v`) for debugging, quiet mode (`-q`) that suppresses the banner and summary lines for cleaner piped output, `--no-color` that strips ANSI colors from the banner, hit lines, and summary without suppressing any output (unlike `-q`), `-o/--output` to save hits to a file (`--append` accumulates across runs instead of overwriting)
+- **Output modes** — verbose logging (`-v`) for debugging, quiet mode (`-q`) that suppresses the banner and summary lines for cleaner piped output, `--no-color` that strips ANSI colors from the banner, hit lines, and summary without suppressing any output (unlike `-q`), `--no-progress` that hides the live `\r` progress bar while keeping hit lines and the final summary, for clean piped logs without `-q`'s silence, `-o/--output` to save hits to a file (`--append` accumulates across runs instead of overwriting)
 - **Directory-listing detection** — 200 responses whose body looks like a server autoindex page (`<title>`/`<h1>` "Index of /...") are flagged `(directory listing)` in terminal, `-o`, and `--json` output, with a count in the final summary (HEAD scans cannot flag listings, since HEAD responses carry no body)
 - **Graceful errors** — connection errors and timeouts are caught per-request; `Ctrl+C` exits cleanly
 - **Rate-limit handling** — backs off and retries HTTP 429 responses (exponential backoff, honors the server's `Retry-After` header in both delta-seconds and HTTP-date forms); `--retry-on 500,502,503` extends the same backoff/`Retry-After` handling to transient server errors (ranges like `500-599` accepted); tune the retry count with `--retries`; hits that needed retries are marked `(retried N)` in terminal, `-o`, and `--json` output so rate-limit pressure stays visible instead of silent
@@ -241,10 +241,13 @@ OUTPUT & LOGGING
   --jsonl                 Save a JSON Lines report (one JSON object per hit) to a file
   --csv                   Save a CSV report (one row per hit) to a file
   --sort                  Sort hits by path in -o/--json/--jsonl/--csv output (per target)
+  --fail-on               Exit non-zero when a hit matches these codes (e.g. 200; ranges like 500-599; for CI gates)
   --checkpoint            Write resume checkpoints during the scan (single-target)
   --resume                Resume an interrupted scan from a checkpoint (single-target)
   -v, --verbose           Enable detailed logging
   -q, --quiet             Minimal output mode
+  --no-color              Disable ANSI colors in terminal output (banner, hits, summary; unlike -q, output still prints)
+  --no-progress           Hide the live progress bar (hit lines and final summary still print; unlike -q)
   -h, --help              Show this help message
 
 EXAMPLES

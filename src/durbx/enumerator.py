@@ -903,6 +903,7 @@ async def enumerate_directories(
     rate_limit: float | None = None,
     random_agent: bool = False,
     retry_on: tuple[int, ...] | None = None,
+    show_progress: bool = True,
 ) -> ScanSummary:
     status_filter = status_filter or []
     exclude_filter = exclude_filter or []
@@ -963,6 +964,10 @@ async def enumerate_directories(
             _write_checkpoint(finished=False)
 
     def render_progress(force: bool = False) -> None:
+        # --no-progress silences the live bar entirely (clean piped
+        # logs); hit lines and the final summary are unaffected.
+        if not show_progress:
+            return
         nonlocal last_render_time
         now = time.time()
         if not force and (now - last_render_time) < 0.1:
@@ -1087,7 +1092,11 @@ async def enumerate_directories(
                     if result.is_directory_listing:
                         directory_listings += 1
                     hit = True
-                    print("\r" + " " * 100 + "\r", end="")
+                    # Clear the live bar before printing the hit line —
+                    # but only when a bar is actually being drawn, so
+                    # --no-progress runs emit no stray \r/space output.
+                    if show_progress:
+                        print("\r" + " " * 100 + "\r", end="")
                     if on_result is not None:
                         on_result(result)
                     else:
@@ -1164,7 +1173,10 @@ async def enumerate_directories(
             raise
         _write_checkpoint(finished=True)
 
-    print()
+    # Newline that terminates the live progress-bar line; with the bar
+    # off there is no line to terminate, so print nothing.
+    if show_progress:
+        print()
     return ScanSummary(
         total=total,
         completed=completed + len(resume_completed or []),

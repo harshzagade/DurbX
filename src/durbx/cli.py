@@ -85,6 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
     parser.add_argument("-q", "--quiet", action="store_true", help="Minimal output mode")
     parser.add_argument("--no-color", action="store_true", help="Disable ANSI colors in terminal output (banner, hit lines, summary) without suppressing output like -q")
+    parser.add_argument("--no-progress", action="store_true", help="Hide the live progress bar but keep hit lines and the final summary (for clean piped logs without -q's silence)")
     parser.add_argument("-h", "--help", action="store_true", help="Show help")
     return parser
 
@@ -264,6 +265,7 @@ def main(argv: list[str] | None = None) -> int:
                         rate_limit=rate_limit,
                         random_agent=args.random_agent,
                         retry_on=retry_on,
+                        show_progress=not args.no_progress,
                     )
                 )
             )

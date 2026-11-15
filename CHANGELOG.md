@@ -6,6 +6,11 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--no-progress`: hide the live `\r` progress bar while keeping hit lines
+  and the final summary, for clean piped logs without `-q`'s silence.
+  `enumerate_directories()` takes a `show_progress` flag (default `True`);
+  with it off, neither the bar nor the line-clear before each hit line is
+  printed. 5 new unit tests.
 - `--fail-on CODES`: exit 1 when a displayed hit matches the given status
   codes (lists and ranges like `500-599` accepted via the existing
   status-code grammar; bad codes fail fast with exit 2), so CI pipelines

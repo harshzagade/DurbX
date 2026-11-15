@@ -102,6 +102,7 @@ def print_help():
             ("-v, --verbose", "Enable detailed logging"),
             ("-q, --quiet", "Minimal output mode"),
             ("--no-color", "Disable ANSI colors in terminal output [dim](banner, hits, summary; unlike -q, output still prints)[/dim]"),
+            ("--no-progress", "Hide the live progress bar [dim](hit lines and final summary still print; unlike -q)[/dim]"),
             ("-h, --help", "Show this help message"),
         ]
     }
