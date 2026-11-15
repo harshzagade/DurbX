@@ -6,6 +6,13 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--cookie NAME=VALUE`: convenience flag (repeatable) to send a session
+  cookie with every request instead of hand-writing `-H 'Cookie: ...'`.
+  `parse_cookies()` validates names (RFC 9110 token) and values (no `;`,
+  `,`, `"`, whitespace, or control characters; empty values allowed) and
+  fails fast with exit 2; `build_cookie_header()` combines pairs into one
+  `Cookie` header, and an explicit `-H Cookie` still wins. 13 new unit
+  tests.
 - `--no-progress`: hide the live `\r` progress bar while keeping hit lines
   and the final summary, for clean piped logs without `-q`'s silence.
   `enumerate_directories()` takes a `show_progress` flag (default `True`);

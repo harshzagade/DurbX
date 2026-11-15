@@ -404,6 +404,45 @@ def parse_headers(raw_values: list[str] | None) -> dict[str, str]:
     return headers
 
 
+def parse_cookies(raw_values: list[str] | None) -> dict[str, str]:
+    """Parse repeatable ``--cookie "NAME=VALUE"`` flags into a dict.
+
+    Splits each item on the first ``=`` (values may contain ``=``, e.g.
+    base64 padding). Raises ``ValueError`` when an item has no ``=``, an
+    empty name, a name that is not a valid HTTP token (RFC 9110 — a
+    cookie-name is a token, so ``=``/``;``/space are rejected), or a value
+    carrying characters a Cookie header cannot hold (``;``, ``,``, ``"``,
+    whitespace, control characters). An empty value is allowed (valid per
+    RFC 6265). Later duplicates overwrite earlier ones, like ``-H``.
+    """
+    cookies: dict[str, str] = {}
+    for item in raw_values or []:
+        name, separator, value = item.partition("=")
+        name = name.strip()
+        if not separator or not name:
+            raise ValueError(f"Invalid cookie (expected 'NAME=VALUE'): {item!r}")
+        if not _HEADER_NAME_RE.match(name):
+            raise ValueError(f"Invalid cookie name: {name!r}")
+        value = value.strip()
+        if any(
+            char.isspace() or char in ';,\"' or ord(char) < 0x20 or ord(char) == 0x7F
+            for char in value
+        ):
+            raise ValueError(f"Invalid cookie value for {name!r}: {value!r}")
+        cookies[name] = value
+    return cookies
+
+
+def build_cookie_header(cookies: dict[str, str] | None) -> str | None:
+    """Join parsed ``--cookie`` pairs into a single ``Cookie`` header
+    value (``name1=value1; name2=value2``, RFC 6265), or ``None`` when
+    no cookies were given. One combined header — not one per cookie —
+    since some servers mishandle repeated ``Cookie`` headers."""
+    if not cookies:
+        return None
+    return "; ".join(f"{name}={value}" for name, value in cookies.items())
+
+
 def parse_extensions(raw_value: str | None) -> list[str]:
     """Parse a comma-separated extension list into ``['.ext', ...]``.
 

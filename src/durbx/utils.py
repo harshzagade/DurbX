@@ -74,6 +74,7 @@ def print_help():
             ("--user-agent", "Custom User-Agent header [dim](default: DurbX/0.1)[/dim]"),
             ("--random-agent", "Rotate User-Agent per request [dim](built-in browser list)[/dim]"),
             ("-H, --header", "Custom HTTP header [dim](repeatable; overrides --user-agent)[/dim]"),
+            ("--cookie", "Send a session cookie [dim](repeatable NAME=VALUE; one Cookie header; an explicit -H Cookie wins)[/dim]"),
             ("-m, --method", "HTTP request method [dim](GET/HEAD/POST; default: GET)[/dim]"),
         ],
         "FILTERS": [
