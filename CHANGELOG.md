@@ -6,6 +6,12 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--basic-auth USER:PASS`: convenience flag to scan behind HTTP Basic
+  auth instead of hand-writing `-H 'Authorization: Basic ...'`.
+  `build_basic_auth_header()` base64-encodes the credentials (RFC 7617;
+  split on the first `:`, so passwords may contain `:`; empty passwords
+  allowed) and fails fast with exit 2 on a missing `:` or an empty user;
+  an explicit `-H Authorization` still wins. 10 new unit tests.
 - `--cookie NAME=VALUE`: convenience flag (repeatable) to send a session
   cookie with every request instead of hand-writing `-H 'Cookie: ...'`.
   `parse_cookies()` validates names (RFC 9110 token) and values (no `;`,

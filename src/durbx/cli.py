@@ -11,6 +11,7 @@ from .enumerator import (
     DEFAULT_THREADS,
     DEFAULT_TIMEOUT,
     DEFAULT_USER_AGENT,
+    build_basic_auth_header,
     build_cookie_header,
     enumerate_directories,
     expand_extensions,
@@ -66,6 +67,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--random-agent", action="store_true", help="Rotate the User-Agent per request from a built-in browser list (overrides --user-agent; an explicit -H User-Agent still wins)")
     parser.add_argument("-H", "--header", action="append", default=None, help="Custom HTTP header, e.g. -H 'Authorization: Bearer abc' (repeatable; overrides --user-agent)")
     parser.add_argument("--cookie", action="append", default=None, help="Send a session cookie, e.g. --cookie session=abc123 (repeatable; combined into one Cookie header; an explicit -H Cookie wins)")
+    parser.add_argument("--basic-auth", help="HTTP Basic auth, e.g. --basic-auth user:pass (sets Authorization: Basic ...; an explicit -H Authorization wins)")
     parser.add_argument("-m", "--method", default=DEFAULT_METHOD, help=f"HTTP method for requests (default: {DEFAULT_METHOD}; GET/HEAD/POST)")
     parser.add_argument("--follow-redirects", action="store_true", help="Follow 3xx redirects instead of reporting them (default: no)")
     parser.add_argument("--status", help="Show only these codes (e.g. 200,403 or ranges like 200-299)")
@@ -181,6 +183,14 @@ def main(argv: list[str] | None = None) -> int:
             name.lower() == "cookie" for name in custom_headers
         ):
             custom_headers["Cookie"] = cookie_header
+        # --basic-auth sets the Authorization header, sent with every
+        # request like -H headers; an explicit -H Authorization wins,
+        # matching the -H-over---user-agent precedence rule.
+        auth_header = build_basic_auth_header(args.basic_auth)
+        if auth_header is not None and not any(
+            name.lower() == "authorization" for name in custom_headers
+        ):
+            custom_headers["Authorization"] = auth_header
     except (ValueError, FileNotFoundError) as exc:
         log.error(f"[bold red]✗[/bold red] {str(exc)}")
         return 2

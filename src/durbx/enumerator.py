@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
@@ -441,6 +442,33 @@ def build_cookie_header(cookies: dict[str, str] | None) -> str | None:
     if not cookies:
         return None
     return "; ".join(f"{name}={value}" for name, value in cookies.items())
+
+
+def build_basic_auth_header(raw_value: str | None) -> str | None:
+    """Build the ``Authorization: Basic ...`` header value for a
+    ``--basic-auth "USER:PASS"`` flag (RFC 7617), or ``None`` when no
+    credentials were given.
+
+    Splits on the first ``:`` (passwords may contain ``:``); an empty
+    password is allowed (``user:`` is valid Basic auth). Raises
+    ``ValueError`` when there is no ``:``, the user is empty, or either
+    side carries whitespace or control characters, so malformed
+    credentials fail fast instead of producing a header the server
+    cannot parse. Credentials are base64-encoded as UTF-8 (identical
+    to ISO-8859-1 for the ASCII credentials Basic auth expects).
+    """
+    if not raw_value:
+        return None
+    user, separator, password = raw_value.partition(":")
+    if not separator or not user:
+        raise ValueError(
+            f"Invalid basic auth (expected 'USER:PASS'): {raw_value!r}"
+        )
+    for label, value in (("user", user), ("password", password)):
+        if any(char.isspace() or ord(char) < 0x20 or ord(char) == 0x7F for char in value):
+            raise ValueError(f"Invalid basic auth {label}: {value!r}")
+    credentials = base64.b64encode(f"{user}:{password}".encode("utf-8"))
+    return f"Basic {credentials.decode('ascii')}"
 
 
 def parse_extensions(raw_value: str | None) -> list[str]:
