@@ -51,9 +51,9 @@ def test_default_get_sent() -> None:
     )
     sessions = aiohttp.ClientSession.instances
     assert len(sessions) == 1
-    # The soft-404 wildcard probe plus one request per wordlist entry.
+    # Two soft-404 wildcard probes plus one request per wordlist entry.
     methods = [method for method, _, _ in sessions[0].requests]
-    assert methods == ["GET", "GET"]
+    assert methods == ["GET", "GET", "GET"]
 
 
 def test_custom_method_sent() -> None:
@@ -69,4 +69,4 @@ def test_custom_method_sent() -> None:
     sessions = aiohttp.ClientSession.instances
     assert len(sessions) == 1
     methods = [method for method, _, _ in sessions[0].requests]
-    assert methods == ["HEAD", "HEAD", "HEAD"]
+    assert methods == ["HEAD", "HEAD", "HEAD", "HEAD"]

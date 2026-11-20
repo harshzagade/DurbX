@@ -45,7 +45,7 @@ def test_redirects_followed_when_enabled() -> None:
     )
     sessions = aiohttp.ClientSession.instances
     assert len(sessions) == 1
-    # The soft-404 wildcard probe plus one request per wordlist entry.
-    assert len(sessions[0].requests) == 3
+    # Two soft-404 wildcard probes plus one request per wordlist entry.
+    assert len(sessions[0].requests) == 4
     for _, _, kwargs in sessions[0].requests:
         assert kwargs.get("allow_redirects") is True

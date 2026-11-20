@@ -53,5 +53,5 @@ def test_custom_user_agent_sent() -> None:
     sessions = aiohttp.ClientSession.instances
     assert len(sessions) == 1
     assert sessions[0].headers == {"User-Agent": "CustomScanner/2.0"}
-    # 3 GETs: the soft-404 wildcard probe plus one per wordlist entry.
-    assert sessions[0].get_count == 3
+    # 4 GETs: two soft-404 wildcard probes plus one per wordlist entry.
+    assert sessions[0].get_count == 4

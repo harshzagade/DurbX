@@ -87,6 +87,51 @@ def test_detect_wildcard_fail_open_on_probe_error() -> None:
     assert asyncio.run(detect_wildcard(session, "https://example.com", max_retries=0)) is None
 
 
+def test_detect_wildcard_requires_two_agreeing_probes() -> None:
+    # Both probes answer 200 but with different body sizes: a single
+    # anycast fluke must not activate the filter.
+    session = _FakeSession([
+        _FakeResponse(200, headers={"Content-Length": "100"}),
+        _FakeResponse(200, headers={"Content-Length": "200"}),
+    ])
+    assert asyncio.run(detect_wildcard(session, "https://example.com", max_retries=0)) is None
+    assert session.calls == 2
+
+
+def test_detect_wildcard_none_when_second_probe_404s() -> None:
+    session = _FakeSession([
+        _FakeResponse(200, headers={"Content-Length": "100"}),
+        _FakeResponse(404, reason="Not Found"),
+    ])
+    assert asyncio.run(detect_wildcard(session, "https://example.com", max_retries=0)) is None
+
+
+def test_detect_wildcard_none_when_second_probe_errors() -> None:
+    session = _FakeSession([
+        _FakeResponse(200, headers={"Content-Length": "100"}),
+        _FakeResponse(0, error=aiohttp.ClientConnectionError("boom")),
+    ])
+    assert asyncio.run(detect_wildcard(session, "https://example.com", max_retries=0)) is None
+
+
+def test_detect_wildcard_first_probe_404_short_circuits() -> None:
+    session = _FakeSession([_FakeResponse(404, reason="Not Found")])
+    assert asyncio.run(detect_wildcard(session, "https://example.com", max_retries=0)) is None
+    assert session.calls == 1
+
+
+def test_detect_wildcard_probes_two_distinct_paths() -> None:
+    session = _FakeSession([
+        _FakeResponse(200, headers={"Content-Length": "100"}),
+        _FakeResponse(200, headers={"Content-Length": "100"}),
+    ])
+    fingerprint = asyncio.run(detect_wildcard(session, "https://example.com", max_retries=0))
+    assert fingerprint == WildcardFingerprint(status=200, size=100)
+    assert len(session.urls) == 2
+    assert session.urls[0] != session.urls[1]
+    assert all(url.startswith("https://example.com/durbx-wildcard-") for url in session.urls)
+
+
 def test_detect_wildcard_retries_probe_429(monkeypatch) -> None:
     sleeps: list = []
 

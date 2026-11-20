@@ -6,6 +6,11 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Wildcard probe twice: `detect_wildcard()` now probes two independent
+  random nonexistent paths and activates the soft-404 filter only when
+  both agree on status + body size, so a one-off anycast fluke cannot
+  hide real hits for the whole scan. Either probe 404ing, failing, or
+  disagreeing fails open (no filter). 5 new unit tests.
 - `--basic-auth USER:PASS`: convenience flag to scan behind HTTP Basic
   auth instead of hand-writing `-H 'Authorization: Basic ...'`.
   `build_basic_auth_header()` base64-encodes the credentials (RFC 7617;

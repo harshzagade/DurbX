@@ -857,7 +857,7 @@ def wildcard_probe_path() -> str:
     return f"durbx-wildcard-{secrets.token_hex(16)}"
 
 
-async def detect_wildcard(
+async def _probe_wildcard_once(
     session,
     base_url: str,
     *,
@@ -867,7 +867,7 @@ async def detect_wildcard(
     proxy: str | None = None,
     retry_on: tuple[int, ...] = (429,),
 ) -> WildcardFingerprint | None:
-    """Probe a random nonexistent path to fingerprint soft-404 behavior.
+    """One soft-404 probe against a fresh random nonexistent path.
 
     Returns a fingerprint when the probe gets anything other than 404
     (the server answers unknown paths with content, e.g. a catch-all
@@ -892,6 +892,51 @@ async def detect_wildcard(
     if outcome.status == 404:
         return None
     return WildcardFingerprint(status=outcome.status, size=outcome.content_length)
+
+
+async def detect_wildcard(
+    session,
+    base_url: str,
+    *,
+    method: str = DEFAULT_METHOD,
+    max_retries: int,
+    allow_redirects: bool = False,
+    proxy: str | None = None,
+    retry_on: tuple[int, ...] = (429,),
+) -> WildcardFingerprint | None:
+    """Probe two independent random nonexistent paths to fingerprint
+    soft-404 behavior, and activate the filter only when both probes
+    agree on (status, size).
+
+    A single probe can be fooled by a one-off anycast fluke (one edge
+    answering a random path with a stray page while the rest 404), which
+    would then hide real hits for the whole scan. Two agreeing probes
+    make that near-impossible: either probe 404ing, failing, or
+    disagreeing with the other returns ``None`` (fail open, no filter).
+    """
+    first = await _probe_wildcard_once(
+        session,
+        base_url,
+        method=method,
+        max_retries=max_retries,
+        allow_redirects=allow_redirects,
+        proxy=proxy,
+        retry_on=retry_on,
+    )
+    if first is None:
+        return None
+    second = await _probe_wildcard_once(
+        session,
+        base_url,
+        method=method,
+        max_retries=max_retries,
+        allow_redirects=allow_redirects,
+        proxy=proxy,
+        retry_on=retry_on,
+    )
+    if second is None or second != first:
+        return None
+    return first
 
 
 def is_wildcard_match(
