@@ -6,6 +6,12 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Checkpoint on Ctrl-C: interrupting a scan now writes the checkpoint file
+  before exiting (exit 130), so progress since the last periodic write is
+  kept and `--resume` picks the scan back up exactly where it stopped
+  instead of re-scanning; the CLI prints the resume command on interrupt.
+  A scan that was already fully scanned when the interrupt landed is marked
+  finished. 3 new unit tests.
 - Wildcard probe twice: `detect_wildcard()` now probes two independent
   random nonexistent paths and activates the soft-404 filter only when
   both agree on status + body size, so a one-off anycast fluke cannot

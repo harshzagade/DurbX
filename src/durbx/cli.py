@@ -293,6 +293,15 @@ def main(argv: list[str] | None = None) -> int:
             hits_by_target.append((base_url, hits[before:]))
     except KeyboardInterrupt:
         console.print(f"\n[bold red][!] Scan interrupted by user. Exiting...[/bold red]")
+        checkpoint_path = args.checkpoint or args.resume
+        if checkpoint_path:
+            # The scan wrote its progress to the checkpoint before dying
+            # (see enumerate_directories), so point at the resume command
+            # instead of leaving the user to rediscover it.
+            console.print(
+                f"[dim]Progress saved to {checkpoint_path} — "
+                f"resume with --resume {checkpoint_path}[/dim]"
+            )
         return 130
 
     # Body-hash dedupe counts are final only once the scan ends (a

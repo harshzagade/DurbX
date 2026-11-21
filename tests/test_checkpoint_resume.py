@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 import aiohttp
@@ -6,6 +7,7 @@ import pytest
 from durbx.cli import main
 from durbx.enumerator import (
     CHECKPOINT_VERSION,
+    enumerate_directories,
     load_checkpoint,
     write_checkpoint,
 )
@@ -211,4 +213,107 @@ def test_checkpoint_with_targets_exit_2(tmp_path) -> None:
             ]
         )
         == 2
+    )
+
+
+def test_cancelled_scan_writes_checkpoint(tmp_path) -> None:
+    """Ctrl-C mid-scan persists progress: the checkpoint must carry the
+    entries finished before the interrupt (not just the empty checkpoint
+    written at scan start) and stay a valid resume point."""
+    _reset_stub_sessions()
+    entries = [f"w{i}" for i in range(50)]
+    wordlist = _write_words(tmp_path, "\n".join(entries) + "\n")
+    cp = str(tmp_path / "cp.json")
+    # --delay 0.2 with one worker stretches the scan to ~10s; the 0.35s
+    # timeout cancels it after a couple of entries — long after the
+    # 10s periodic write could have fired, so any progress recorded
+    # here came from the cancellation handler, not the periodic writer.
+    with pytest.raises(asyncio.TimeoutError):
+        asyncio.run(
+            asyncio.wait_for(
+                enumerate_directories(
+                    base_url="https://example.com",
+                    entries=entries,
+                    detect_wildcards=False,
+                    threads=1,
+                    delay=0.2,
+                    checkpoint_file=cp,
+                    show_progress=False,
+                ),
+                timeout=0.35,
+            )
+        )
+    loaded = load_checkpoint(cp)
+    assert loaded["finished"] is False
+    assert loaded["entries"] == entries
+    assert 0 < len(loaded["completed"]) < len(entries)
+    # The interrupted checkpoint is a real resume point: resuming
+    # finishes the scan without re-requesting completed entries.
+    rc = main(["--resume", cp, "-w", str(wordlist), "--no-wildcard", "-q"])
+    assert rc == 0
+    loaded = load_checkpoint(cp)
+    assert loaded["finished"] is True
+    assert sorted(loaded["completed"]) == sorted(entries)
+    requested = [
+        request[1]
+        for session in aiohttp.ClientSession.instances
+        for request in session.requests
+    ]
+    for done in loaded["completed"]:
+        assert sum(1 for url in requested if url.endswith(f"/{done}")) == 1
+
+
+def test_cancelled_scan_without_checkpoint_is_clean(tmp_path) -> None:
+    """Cancelling a scan that has no checkpoint file must not raise
+    anything from the checkpoint writer — it is a no-op there."""
+    _reset_stub_sessions()
+    entries = [f"w{i}" for i in range(50)]
+    with pytest.raises(asyncio.TimeoutError):
+        asyncio.run(
+            asyncio.wait_for(
+                enumerate_directories(
+                    base_url="https://example.com",
+                    entries=entries,
+                    detect_wildcards=False,
+                    threads=1,
+                    delay=0.2,
+                    show_progress=False,
+                ),
+                timeout=0.35,
+            )
+        )
+
+
+def test_keyboard_interrupt_returns_130(tmp_path, monkeypatch) -> None:
+    """The CLI catches KeyboardInterrupt from the scan and exits 130
+    instead of leaking the traceback."""
+    _reset_stub_sessions()
+    wordlist = _write_words(tmp_path, "admin\nlogin\n")
+    cp = str(tmp_path / "cp.json")
+
+    import durbx.cli as cli_mod
+
+    def _raise_keyboard_interrupt(*args, **kwargs):
+        # The scan coroutine is created but never run under the stubbed
+        # asyncio.run — close it so pytest does not warn about an
+        # un-awaited coroutine.
+        if args:
+            args[0].close()
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(cli_mod.asyncio, "run", _raise_keyboard_interrupt)
+    assert (
+        main(
+            [
+                "-u",
+                "example.com",
+                "-w",
+                str(wordlist),
+                "--checkpoint",
+                cp,
+                "--no-wildcard",
+                "-q",
+            ]
+        )
+        == 130
     )

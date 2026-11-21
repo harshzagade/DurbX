@@ -1278,6 +1278,15 @@ async def enumerate_directories(
             await queue.join()
             await asyncio.gather(*tasks)
         except asyncio.CancelledError:
+            # Ctrl-C (or any cancellation) mid-scan: persist progress
+            # before dying, so the run is resumable instead of losing
+            # everything since the last periodic checkpoint write. A scan
+            # that was already fully scanned when the interrupt landed
+            # (join done, gather still draining) is marked finished, so
+            # --resume correctly refuses to re-run it.
+            _write_checkpoint(
+                finished=len(completed_entries) == len(entries)
+            )
             for task in tasks:
                 if not task.done():
                     task.cancel()
