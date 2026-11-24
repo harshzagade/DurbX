@@ -6,6 +6,11 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--min-size N`: hide responses smaller than N bytes, the small-response
+  counterpart to `--filter-length`/`--match-length` for cutting empty-page
+  noise. `parse_min_size()` fails fast with exit 2 on non-integer or
+  negative values; the gate is checked before the `--all` default rule
+  and combined (AND) with the other size filters. 7 new unit tests.
 - Checkpoint on Ctrl-C: interrupting a scan now writes the checkpoint file
   before exiting (exit 130), so progress since the last periodic write is
   kept and `--resume` picks the scan back up exactly where it stopped

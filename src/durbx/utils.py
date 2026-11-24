@@ -84,6 +84,7 @@ def print_help():
             ("--exclude", "Exclude these codes [dim](e.g. 404,500; ranges like 500-599)[/dim]"),
             ("--filter-length", "Hide responses with these body sizes [dim](e.g. 1234,5678)[/dim]"),
             ("--match-length", "Show only responses with these body sizes [dim](e.g. 1234,5678)[/dim]"),
+            ("--min-size", "Hide responses smaller than N bytes [dim](e.g. 100)[/dim]"),
             ("--exclude-path", "Skip wordlist entries matching a regex [dim](repeatable; before -x expansion)[/dim]"),
             ("--timeout", "Request timeout in seconds [dim](default: 3.0)[/dim]"),
             ("--retries", "Retry retryable statuses with backoff [dim](default: 3; 0 disables)[/dim]"),
