@@ -6,6 +6,12 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--max-size N`: hide responses larger than N bytes, the large-response
+  counterpart to `--min-size` for cutting big-file noise (e.g. huge JS
+  bundles). `parse_max_size()` fails fast with exit 2 on non-integer or
+  negative values; the gate is checked before the `--all` default rule
+  and combined (AND) with the other size filters, and the boundary is
+  inclusive (a body of exactly N bytes still shows). 7 new unit tests.
 - `--min-size N`: hide responses smaller than N bytes, the small-response
   counterpart to `--filter-length`/`--match-length` for cutting empty-page
   noise. `parse_min_size()` fails fast with exit 2 on non-integer or

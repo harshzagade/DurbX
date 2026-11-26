@@ -366,14 +366,14 @@ def render_csv_report(
     return buffer.getvalue()
 
 
-def render_results(results: list[ScanResult], status_filter: list[int] | None = None, exclude_filter: list[int] | None = None, filter_lengths: list[int] | None = None, match_lengths: list[int] | None = None, min_size: int | None = None, *, color: bool = True) -> str:
+def render_results(results: list[ScanResult], status_filter: list[int] | None = None, exclude_filter: list[int] | None = None, filter_lengths: list[int] | None = None, match_lengths: list[int] | None = None, min_size: int | None = None, max_size: int | None = None, *, color: bool = True) -> str:
     status_filter = status_filter or []
     exclude_filter = exclude_filter or []
     filter_lengths = filter_lengths or []
     match_lengths = match_lengths or []
     visible = []
     for result in results:
-        if not should_show_result(result, status_filter=status_filter, exclude_filter=exclude_filter, filter_lengths=filter_lengths, match_lengths=match_lengths, min_size=min_size):
+        if not should_show_result(result, status_filter=status_filter, exclude_filter=exclude_filter, filter_lengths=filter_lengths, match_lengths=match_lengths, min_size=min_size, max_size=max_size):
             continue
         visible.append(result)
 

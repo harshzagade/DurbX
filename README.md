@@ -46,6 +46,7 @@ Real terminal captures from an actual run (local test server — no real target 
 - **Body-size filtering** — `--filter-length N` (gobuster-style) hides responses whose body size equals N, for cutting through identical-size noise; comma-separated for several sizes, applies even under `--all`
 - **Body-size matching** — `--match-length N` is the inverse: show ONLY responses whose body size equals N, for zeroing in on a known interesting size; comma-separated, combines (AND) with the status filters
 - **Minimum body size** — `--min-size N` hides responses smaller than N bytes, the small-response counterpart to `--filter-length`/`--match-length` for cutting empty-page noise; combines (AND) with the other size filters
+- **Maximum body size** — `--max-size N` hides responses larger than N bytes, the large-response counterpart to `--min-size` for cutting big-file noise (e.g. huge JS bundles); combines (AND) with the other size filters
 - **Path exclusion** — `--exclude-path REGEX` (repeatable) skips wordlist entries matching a regex before any request is sent, for cutting noisy subtrees (e.g. `--exclude-path '^assets/'`); matched against the entry as written, before `-x` extension expansion, so one pattern drops the whole subtree including its variants; malformed patterns fail fast
 - **Stdin path input** — `--stdin` (or `-w -`) reads candidate paths from stdin instead of a wordlist file, so DurbX pipes cleanly from other recon tools (`other-tool | durbx -u example.com --stdin`); same normalization as wordlist files (blanks, `#` comments, duplicates dropped)
 - **JSON report** — `--json report.json` writes a machine-readable final report (every hit plus an aggregate `stats` block: completed/total, hit count, wildcard-filtered count, duration) for CI and recon pipelines
@@ -230,6 +231,7 @@ FILTERS
   --filter-length         Hide responses with these body sizes (e.g. 1234,5678)
   --match-length          Show only responses with these body sizes (e.g. 1234,5678)
   --min-size              Hide responses smaller than N bytes (e.g. 100)
+  --max-size              Hide responses larger than N bytes (e.g. 100000)
   --exclude-path          Skip wordlist entries matching a regex (repeatable; before -x expansion)
   --timeout               Request timeout in seconds (default: 3.0)
   --retries               Retry retryable statuses with backoff (default: 3; 0 disables)

@@ -361,6 +361,25 @@ def parse_min_size(raw_value: str | None) -> int | None:
     return size
 
 
+def parse_max_size(raw_value: str | None) -> int | None:
+    """Parse a single maximum body size in bytes for ``--max-size``.
+
+    Mirror of :func:`parse_min_size` — returns ``None`` when the flag
+    was not given, raises ``ValueError`` for non-integer or negative
+    values. A negative size can never filter, so it is almost certainly
+    a typo.
+    """
+    if not raw_value:
+        return None
+    try:
+        size = int(raw_value.strip())
+    except ValueError as exc:
+        raise ValueError(f"Invalid maximum body size: {raw_value}") from exc
+    if size < 0:
+        raise ValueError(f"Invalid maximum body size (must be >= 0): {raw_value}")
+    return size
+
+
 def parse_filter_lengths(raw_value: str | None) -> list[int]:
     """Parse a comma-separated list of response body sizes into ints.
 
@@ -977,6 +996,7 @@ def should_show_result(
     filter_lengths: list[int] | None = None,
     match_lengths: list[int] | None = None,
     min_size: int | None = None,
+    max_size: int | None = None,
 ) -> bool:
     status_filter = status_filter or []
     exclude_filter = exclude_filter or []
@@ -1004,6 +1024,12 @@ def should_show_result(
     # noise. Also checked before the --all default rule, and combined (AND)
     # with the size filters above.
     if min_size is not None and result.size < min_size:
+        return False
+    # --max-size: hide responses larger than N bytes, the large-response
+    # counterpart to --min-size for cutting big-file noise (e.g. huge JS
+    # bundles). Same placement and AND semantics as --min-size; the
+    # boundary is inclusive, so a body of exactly N bytes still shows.
+    if max_size is not None and result.size > max_size:
         return False
     # If all_codes flag is set, show everything except 404
     if all_codes:
@@ -1035,6 +1061,7 @@ async def enumerate_directories(
     filter_lengths: list[int] | None = None,
     match_lengths: list[int] | None = None,
     min_size: int | None = None,
+    max_size: int | None = None,
     checkpoint_file: str | None = None,
     checkpoint_every: float = DEFAULT_CHECKPOINT_EVERY,
     resume_completed: list[str] | None = None,
@@ -1195,7 +1222,7 @@ async def enumerate_directories(
                 # random nonexistent path. Hidden, but counted separately so
                 # the user can see the filter did something.
                 wildcard_filtered += 1
-            elif should_show_result(result, status_filter=status_filter, exclude_filter=exclude_filter, all_codes=all_codes, filter_lengths=filter_lengths, match_lengths=match_lengths, min_size=min_size):
+            elif should_show_result(result, status_filter=status_filter, exclude_filter=exclude_filter, all_codes=all_codes, filter_lengths=filter_lengths, match_lengths=match_lengths, min_size=min_size, max_size=max_size):
                 # Tech headers are tallied for every hit that passes the
                 # display filters — collapsed duplicates included, since
                 # the header was still seen on a hit (its representative
