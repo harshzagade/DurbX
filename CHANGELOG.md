@@ -6,6 +6,15 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--grep PATTERN`: search the first 8 KB of each hit's 200 body (the
+  window already read for listing/hash/title checks) for a regex and tag
+  matching hits as `(grep: <pattern>)` in terminal, `-o`, and
+  `--json`/`--jsonl`/`--csv` output (`grep_match` + `grep_pattern` per
+  hit), so interesting strings surface without a second fetch.
+  Tagging only, never a filter — a non-matching hit still shows.
+  `parse_grep_pattern()` fails fast with exit 2 on an invalid regex;
+  matching is case-sensitive unless the pattern uses `(?i)`. 8 new unit
+  tests.
 - `--max-size N`: hide responses larger than N bytes, the large-response
   counterpart to `--min-size` for cutting big-file noise (e.g. huge JS
   bundles). `parse_max_size()` fails fast with exit 2 on non-integer or

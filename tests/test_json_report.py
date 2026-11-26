@@ -54,6 +54,8 @@ def test_render_json_report_structure() -> None:
         "redirect_target": None,
         "duplicate_count": 1,
         "page_title": None,
+        "grep_match": False,
+        "grep_pattern": None,
         "latency_ms": None,
     }
 

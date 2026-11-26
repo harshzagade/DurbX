@@ -76,6 +76,10 @@ class ScanResult:
     # The page's <title> (None when the 200 body had none — non-200s,
     # HEAD responses and empty bodies never carry one).
     page_title: str | None = None
+    # True when the --grep pattern matched the first 8 KB of this hit's
+    # 200 body; grep_pattern carries the pattern string for display.
+    grep_match: bool = False
+    grep_pattern: str | None = None
 
 
 @dataclass(frozen=True)
@@ -126,6 +130,9 @@ class FetchOutcome:
     server: str | None = None
     powered_by: str | None = None
     page_title: str | None = None
+    # True when the --grep pattern matched the first 8 KB of a 200 body
+    # (False when no pattern was given, or the body was never read).
+    grep_match: bool = False
 
 
 def hash_body_snippet(snippet: str) -> str | None:
@@ -341,6 +348,23 @@ def parse_match_lengths(raw_value: str | None) -> list[int]:
     polarity differs: match-length is an allowlist, filter-length a denylist.
     """
     return parse_filter_lengths(raw_value)
+
+
+def parse_grep_pattern(raw_value: str | None) -> re.Pattern[str] | None:
+    """Compile the regex for ``--grep``.
+
+    Returns ``None`` when the flag was not given. Raises ``ValueError``
+    for an invalid regex — a bad pattern can never match, so it fails
+    fast (exit 2) instead of silently tagging nothing for a whole scan.
+    Matching is case-sensitive; use an inline ``(?i)`` flag for
+    case-insensitive matching.
+    """
+    if not raw_value:
+        return None
+    try:
+        return re.compile(raw_value)
+    except re.error as exc:
+        raise ValueError(f"Invalid grep pattern: {raw_value} ({exc})") from exc
 
 
 def parse_min_size(raw_value: str | None) -> int | None:
@@ -751,6 +775,7 @@ async def fetch_with_retry(
     inspect_body: bool = False,
     headers: dict[str, str] | None = None,
     retry_on: tuple[int, ...] = (429,),
+    grep_pattern: re.Pattern[str] | None = None,
 ) -> FetchOutcome:
     """Request ``url`` with ``method``, backing off and retrying on retryable statuses.
 
@@ -766,7 +791,10 @@ async def fetch_with_retry(
     body hash used for duplicate-body dedupe (see
     :func:`hash_body_snippet`), and the page title (see
     :func:`extract_page_title`); the wildcard probe leaves it off since it
-    only needs status + size. A 3xx response's ``Location``
+    only needs status + size. When ``grep_pattern`` is also given, the same
+    first-8KB window is searched for the pattern and the hit is tagged
+    (``grep_match``) — tagging only, never a display filter, so a
+    non-matching hit still shows. A 3xx response's ``Location``
     header is captured as ``redirect_target`` so hit output can show
     where the redirect points instead of repeating the requested URL.
     The ``Server`` / ``X-Powered-By`` response headers are captured too,
@@ -787,6 +815,7 @@ async def fetch_with_retry(
                 listing = False
                 body_hash = None
                 page_title = None
+                grep_match = False
                 if inspect_body and status == 200:
                     # One read serves all body-derived checks; the title
                     # comes from the same first-8KB window, so no second
@@ -795,6 +824,11 @@ async def fetch_with_retry(
                     listing = looks_like_directory_listing(snippet)
                     body_hash = hash_body_snippet(snippet)
                     page_title = extract_page_title(snippet)
+                    # --grep tags the hit when the pattern matches the
+                    # same window; it never filters, so the search runs
+                    # here and the display decision stays elsewhere.
+                    if grep_pattern is not None:
+                        grep_match = grep_pattern.search(snippet) is not None
                 # The Location header is the redirect's real destination:
                 # without it, a 3xx hit's "-> url" suffix just repeats the
                 # URL that was requested. Only 3xx responses carry one;
@@ -813,6 +847,7 @@ async def fetch_with_retry(
                     server=response.headers.get("Server") or None,
                     powered_by=response.headers.get("X-Powered-By") or None,
                     page_title=page_title,
+                    grep_match=grep_match,
                 )
             delay = retry_delay(attempt, parse_retry_after(response.headers.get("Retry-After")))
             await asyncio.sleep(delay)
@@ -1062,6 +1097,7 @@ async def enumerate_directories(
     match_lengths: list[int] | None = None,
     min_size: int | None = None,
     max_size: int | None = None,
+    grep_pattern: re.Pattern[str] | None = None,
     checkpoint_file: str | None = None,
     checkpoint_every: float = DEFAULT_CHECKPOINT_EVERY,
     resume_completed: list[str] | None = None,
@@ -1178,6 +1214,7 @@ async def enumerate_directories(
                 inspect_body=True,
                 headers=request_headers,
                 retry_on=retry_on,
+                grep_pattern=grep_pattern,
             )
         except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
             detail = str(exc).strip()
@@ -1206,6 +1243,8 @@ async def enumerate_directories(
                 latency_ms=(time.monotonic() - started) * 1000,
                 body_hash=outcome.body_hash,
                 page_title=outcome.page_title,
+                grep_match=outcome.grep_match,
+                grep_pattern=grep_pattern.pattern if outcome.grep_match else None,
             )
             seen_server = outcome.server
             seen_powered_by = outcome.powered_by

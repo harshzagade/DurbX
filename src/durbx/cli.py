@@ -24,6 +24,7 @@ from .enumerator import (
     parse_exclude_paths,
     parse_extensions,
     parse_filter_lengths,
+    parse_grep_pattern,
     parse_headers,
     parse_cookies,
     parse_match_lengths,
@@ -78,6 +79,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--match-length", help="Show only responses with these body sizes in bytes (e.g. 1234,5678)")
     parser.add_argument("--min-size", help="Hide responses smaller than N bytes (e.g. 100)")
     parser.add_argument("--max-size", help="Hide responses larger than N bytes (e.g. 100000)")
+    parser.add_argument("--grep", metavar="PATTERN", help="Tag hits whose first 8 KB of body matches this regex (e.g. 'password|secret')")
     parser.add_argument("--exclude-path", action="append", default=None, help="Skip wordlist entries matching this regex (repeatable; matched before -x expansion, e.g. ^assets/)")
     parser.add_argument("-a", "--all", action="store_true", help="Show all status codes (except 404)")
     parser.add_argument("--no-wildcard", action="store_true", help="Disable soft-404 wildcard detection")
@@ -168,6 +170,7 @@ def main(argv: list[str] | None = None) -> int:
         match_lengths = parse_match_lengths(args.match_length)
         min_size = parse_min_size(args.min_size)
         max_size = parse_max_size(args.max_size)
+        grep_pattern = parse_grep_pattern(args.grep)
         extensions = parse_extensions(args.extensions)
         if args.delay < 0:
             raise ValueError("--delay must be >= 0")
@@ -289,6 +292,7 @@ def main(argv: list[str] | None = None) -> int:
                         match_lengths=match_lengths,
                         min_size=min_size,
                         max_size=max_size,
+                        grep_pattern=grep_pattern,
                         checkpoint_file=args.checkpoint or args.resume,
                         resume_completed=resume_completed,
                         rate_limit=rate_limit,

@@ -73,6 +73,19 @@ def _title_note(result: ScanResult) -> str:
     return f" (title: {title})"
 
 
+def _grep_note(result: ScanResult) -> str:
+    """`` (grep: <pattern>)`` suffix for hits whose 200 body matched the
+    ``--grep`` pattern; non-matching hits render exactly as before.
+    The pattern is cut to 60 characters like titles, so a long regex
+    cannot stretch the hit line across the terminal."""
+    if not result.grep_match or not result.grep_pattern:
+        return ""
+    pattern = result.grep_pattern
+    if len(pattern) > _TITLE_MAX_LEN:
+        pattern = pattern[:_TITLE_MAX_LEN] + "..."
+    return f" (grep: {pattern})"
+
+
 def _url_suffix(result: ScanResult) -> str:
     """`` -> <destination>`` suffix for hits that carry a URL worth showing.
 
@@ -103,7 +116,7 @@ def format_result(result: ScanResult, *, color: bool = True) -> str:
     """
     status = str(result.status_code) if result.status_code is not None else "-"
     size = f"{result.size}B"
-    line = f"{result.path:<20} {status:<5} {size:<10}{_retry_note(result)}{_listing_note(result)}{_duplicate_note(result)}{_title_note(result)}"
+    line = f"{result.path:<20} {status:<5} {size:<10}{_retry_note(result)}{_listing_note(result)}{_duplicate_note(result)}{_title_note(result)}{_grep_note(result)}"
     line += _url_suffix(result)
     if not color:
         return line
@@ -114,7 +127,7 @@ def plain_result_line(result: ScanResult) -> str:
     """Single-line hit without ANSI colors, for output files and piping."""
     status = str(result.status_code) if result.status_code is not None else "-"
     size = f"{result.size}B"
-    line = f"{result.path:<20} {status:<5} {size:<10}{_retry_note(result)}{_listing_note(result)}{_duplicate_note(result)}{_title_note(result)}"
+    line = f"{result.path:<20} {status:<5} {size:<10}{_retry_note(result)}{_listing_note(result)}{_duplicate_note(result)}{_title_note(result)}{_grep_note(result)}"
     line += _url_suffix(result)
     return line
 
@@ -227,6 +240,8 @@ def _hit_to_dict(target: str, hit: ScanResult) -> dict:
         "redirect_target": hit.redirect_target,
         "duplicate_count": hit.duplicate_count,
         "page_title": hit.page_title,
+        "grep_match": hit.grep_match,
+        "grep_pattern": hit.grep_pattern,
         "latency_ms": (
             round(hit.latency_ms, 2) if hit.latency_ms is not None else None
         ),
@@ -316,6 +331,8 @@ CSV_FIELDNAMES = (
     "redirect_target",
     "duplicate_count",
     "page_title",
+    "grep_match",
+    "grep_pattern",
     "latency_ms",
 )
 
@@ -356,6 +373,8 @@ def render_csv_report(
                     "redirect_target": hit.redirect_target or "",
                     "duplicate_count": hit.duplicate_count,
                     "page_title": hit.page_title or "",
+                    "grep_match": "true" if hit.grep_match else "false",
+                    "grep_pattern": hit.grep_pattern or "",
                     "latency_ms": (
                         round(hit.latency_ms, 2)
                         if hit.latency_ms is not None
