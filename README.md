@@ -49,6 +49,7 @@ Real terminal captures from an actual run (local test server — no real target 
 - **Maximum body size** — `--max-size N` hides responses larger than N bytes, the large-response counterpart to `--min-size` for cutting big-file noise (e.g. huge JS bundles); combines (AND) with the other size filters
 - **Body grep** — `--grep PATTERN` searches the first 8 KB of each hit's body (already read for listing/hash checks) for a regex and tags matching hits as `(grep: <pattern>)` in terminal, `-o`, and `--json`/`--jsonl`/`--csv` output, so interesting strings surface without a second fetch; tagging only, never a filter
 - **Path exclusion** — `--exclude-path REGEX` (repeatable) skips wordlist entries matching a regex before any request is sent, for cutting noisy subtrees (e.g. `--exclude-path '^assets/'`); matched against the entry as written, before `-x` extension expansion, so one pattern drops the whole subtree including its variants; malformed patterns fail fast
+- **Path inclusion** — `--include-path REGEX` (repeatable) is the allowlist counterpart: only wordlist entries matching a regex are scanned, for scoping a run to one subtree (e.g. `--include-path '^api/'`); matched the same way as `--exclude-path` (entry as written, before `-x` expansion), and combined with it the scanned set is (included AND NOT excluded), so `--exclude-path` can still carve holes out of an included subtree; malformed patterns fail fast
 - **Recursive enumeration** — `--recurse DEPTH` replays the wordlist under each discovered directory, up to DEPTH levels deep, so nested paths are found in one run (e.g. `admin/` 200 → `admin/secret.html` is probed too); a hit counts as a directory when it is a trailing-slash path, a 301/302/307/308 (to a trailing-slash target, same-origin only), or a 200 directory listing — a 403 on a slash path is not confirmed and never recurses; already-scanned entries are never re-queued, and the final summary reports how many directories were recursed into; incompatible with `--checkpoint`/`--resume`, which fail fast with exit 2
 - **Stdin path input** — `--stdin` (or `-w -`) reads candidate paths from stdin instead of a wordlist file, so DurbX pipes cleanly from other recon tools (`other-tool | durbx -u example.com --stdin`); same normalization as wordlist files (blanks, `#` comments, duplicates dropped)
 - **JSON report** — `--json report.json` writes a machine-readable final report (every hit plus an aggregate `stats` block: completed/total, hit count, wildcard-filtered count, duration) for CI and recon pipelines
@@ -236,6 +237,7 @@ FILTERS
   --max-size              Hide responses larger than N bytes (e.g. 100000)
   --grep                  Tag hits whose first 8 KB of body matches a regex (e.g. password|secret)
   --exclude-path          Skip wordlist entries matching a regex (repeatable; before -x expansion)
+  --include-path          Scan only wordlist entries matching a regex (repeatable; before -x expansion)
   --recurse               Replay the wordlist under discovered directories (DEPTH levels deep)
   --timeout               Request timeout in seconds (default: 3.0)
   --retries               Retry retryable statuses with backoff (default: 3; 0 disables)
@@ -272,7 +274,7 @@ EXAMPLES
 ## 🎯 How It Works
 
 1. **URL normalization** — `example.com` → `https://example.com`
-2. **Wordlist loading** — strip whitespace/leading slashes, drop duplicates, skip `#` comments; `--exclude-path` drops entries matching a regex before any request is sent
+2. **Wordlist loading** — strip whitespace/leading slashes, drop duplicates, skip `#` comments; `--exclude-path` drops entries matching a regex before any request is sent; `--include-path` keeps only entries matching a regex (combined: included AND NOT excluded)
 3. **Wildcard probe** — two independent random nonexistent paths are requested first; if both answer anything other than 404 with the same status + body size, that pair becomes the soft-404 fingerprint (a single fluke cannot activate the filter)
 4. **Concurrent scan** — a bounded `aiohttp` worker pool (size = `-t`, default 50) GETs each path and records status code, reason, and body size
 5. **Recursion** — with `--recurse DEPTH`, each level's confirmed directories (trailing-slash hit, 301, or directory listing) get the wordlist replayed under them, up to DEPTH levels deep; already-scanned entries are never re-queued

@@ -6,6 +6,14 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--include-path REGEX`: allowlist counterpart to `--exclude-path` — only
+  wordlist entries matching the regex are scanned, for scoping a run to
+  one subtree (e.g. `--include-path '^api/'`). `parse_include_paths()` /
+  `filter_included_paths()` mirror the exclude helpers (matched against
+  the entry as written, before `-x` expansion; empty or uncompilable
+  patterns fail fast with exit 2); the include filter runs first, then
+  exclude, so the scanned set is (included AND NOT excluded). 11 new unit
+  tests.
 - `--recurse DEPTH`: replay the wordlist under each discovered directory,
   up to DEPTH levels deep, so nested paths are found in one run. A hit
   counts as a directory when it is a trailing-slash path, a 301/302/307/308

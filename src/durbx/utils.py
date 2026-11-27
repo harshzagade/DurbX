@@ -88,6 +88,7 @@ def print_help():
             ("--max-size", "Hide responses larger than N bytes [dim](e.g. 100000)[/dim]"),
             ("--grep", "Tag hits whose first 8 KB of body matches a regex [dim](e.g. password|secret; tags only, never filters)[/dim]"),
             ("--exclude-path", "Skip wordlist entries matching a regex [dim](repeatable; before -x expansion)[/dim]"),
+            ("--include-path", "Scan only wordlist entries matching a regex [dim](repeatable; allowlist counterpart to --exclude-path; before -x expansion)[/dim]"),
             ("--timeout", "Request timeout in seconds [dim](default: 3.0)[/dim]"),
             ("--retries", "Retry retryable statuses with backoff [dim](default: 3; 0 disables)[/dim]"),
             ("--retry-on", "Statuses to retry like 429 [dim](e.g. 500,502,503; default: 429 only)[/dim]"),

@@ -16,6 +16,7 @@ from .enumerator import (
     enumerate_directories,
     expand_extensions,
     filter_excluded_paths,
+    filter_included_paths,
     load_checkpoint,
     load_stdin_entries,
     load_targets,
@@ -26,6 +27,7 @@ from .enumerator import (
     parse_filter_lengths,
     parse_grep_pattern,
     parse_headers,
+    parse_include_paths,
     parse_cookies,
     parse_match_lengths,
     parse_max_size,
@@ -82,6 +84,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-size", help="Hide responses larger than N bytes (e.g. 100000)")
     parser.add_argument("--grep", metavar="PATTERN", help="Tag hits whose first 8 KB of body matches this regex (e.g. 'password|secret')")
     parser.add_argument("--exclude-path", action="append", default=None, help="Skip wordlist entries matching this regex (repeatable; matched before -x expansion, e.g. ^assets/)")
+    parser.add_argument("--include-path", action="append", default=None, help="Scan only wordlist entries matching this regex (repeatable; allowlist counterpart to --exclude-path, matched before -x expansion, e.g. ^api/)")
     parser.add_argument("--recurse", metavar="DEPTH", help="Recurse into discovered directories: replay the wordlist under each confirmed directory (trailing-slash hit, 301, or directory listing), up to DEPTH levels deep (e.g. 1; 0 disables)")
     parser.add_argument("-a", "--all", action="store_true", help="Show all status codes (except 404)")
     parser.add_argument("--no-wildcard", action="store_true", help="Disable soft-404 wildcard detection")
@@ -152,11 +155,21 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("A wordlist is required: use -w/--wordlist FILE, -w -, or --stdin")
         if not entries:
             raise ValueError("No wordlist entries were loaded.")
-        # Exclude before any request is sent (and before --resume compares
-        # the expanded list against its checkpoint, so a resumed run with
-        # the same flag sees the same entries the checkpoint was written
-        # for). Matching is against the entry as written, before -x
-        # expansion, so ^assets/ also drops that subtree's variants.
+        # Include/exclude before any request is sent (and before --resume
+        # compares the expanded list against its checkpoint, so a resumed
+        # run with the same flags sees the same entries the checkpoint was
+        # written for). Matching is against the entry as written, before
+        # -x expansion, so ^assets/ also drops that subtree's variants.
+        # The include filter runs first, then exclude: the scanned set is
+        # (included AND NOT excluded), so --exclude-path can still carve
+        # holes out of an --include-path subtree.
+        include_patterns = parse_include_paths(args.include_path)
+        entries, included_skipped = filter_included_paths(entries, include_patterns)
+        if included_skipped and not args.quiet:
+            console.print(
+                f"[dim]--include-path kept {len(entries)} of "
+                f"{len(entries) + included_skipped} wordlist entries.[/dim]"
+            )
         exclude_patterns = parse_exclude_paths(args.exclude_path)
         entries, excluded_count = filter_excluded_paths(entries, exclude_patterns)
         if excluded_count and not args.quiet:
@@ -165,7 +178,17 @@ def main(argv: list[str] | None = None) -> int:
                 f"[dim]Excluded {excluded_count} wordlist {noun} via --exclude-path.[/dim]"
             )
         if not entries:
-            raise ValueError("No wordlist entries remain after --exclude-path filtering.")
+            used_filters = " + ".join(
+                name
+                for name, patterns in (
+                    ("--include-path", include_patterns),
+                    ("--exclude-path", exclude_patterns),
+                )
+                if patterns
+            )
+            raise ValueError(
+                f"No wordlist entries remain after {used_filters} filtering."
+            )
         status_filter = parse_status_codes(args.status)
         exclude_filter = parse_status_codes(args.exclude)
         filter_lengths = parse_filter_lengths(args.filter_length)

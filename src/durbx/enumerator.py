@@ -642,6 +642,53 @@ def filter_excluded_paths(
     return kept, skipped
 
 
+def parse_include_paths(raw_values: list[str] | None) -> list["re.Pattern[str]"]:
+    """Compile repeatable ``--include-path REGEX`` flags into patterns.
+
+    The allowlist counterpart to :func:`parse_exclude_paths`: only
+    entries matching at least one pattern are scanned. Raises
+    ``ValueError`` for an empty pattern (it would match every entry, so
+    it is almost certainly a typo) or for a pattern that does not
+    compile, so a typo fails fast with exit 2.
+    """
+    patterns: list[re.Pattern[str]] = []
+    for raw_value in raw_values or []:
+        if not raw_value.strip():
+            raise ValueError("--include-path must not be empty")
+        try:
+            patterns.append(re.compile(raw_value))
+        except re.error as exc:
+            raise ValueError(
+                f"Invalid --include-path regex {raw_value!r}: {exc}"
+            ) from exc
+    return patterns
+
+
+def filter_included_paths(
+    entries: list[str],
+    patterns: list["re.Pattern[str]"],
+) -> tuple[list[str], int]:
+    """Keep only wordlist entries matching any ``--include-path`` pattern.
+
+    Matching uses ``search`` on the entry as written in the wordlist —
+    before ``-x`` extension expansion, so including ``^api/`` also
+    keeps that subtree's ``.php`` variants. Returns the kept entries
+    (order preserved) and how many were skipped, so the CLI can report
+    the skip count. With no patterns this is the identity (everything
+    kept), so the flag is purely opt-in.
+    """
+    if not patterns:
+        return list(entries), 0
+    kept: list[str] = []
+    skipped = 0
+    for entry in entries:
+        if any(pattern.search(entry) for pattern in patterns):
+            kept.append(entry)
+        else:
+            skipped += 1
+    return kept, skipped
+
+
 def parse_retry_after(raw_value: str | None) -> float | None:
     """Parse a ``Retry-After`` header value into seconds.
 
