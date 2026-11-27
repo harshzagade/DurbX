@@ -32,6 +32,7 @@ from .enumerator import (
     parse_method,
     parse_min_size,
     parse_rate_limit,
+    parse_recurse_depth,
     parse_status_codes,
 )
 from .formatter import (
@@ -81,6 +82,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-size", help="Hide responses larger than N bytes (e.g. 100000)")
     parser.add_argument("--grep", metavar="PATTERN", help="Tag hits whose first 8 KB of body matches this regex (e.g. 'password|secret')")
     parser.add_argument("--exclude-path", action="append", default=None, help="Skip wordlist entries matching this regex (repeatable; matched before -x expansion, e.g. ^assets/)")
+    parser.add_argument("--recurse", metavar="DEPTH", help="Recurse into discovered directories: replay the wordlist under each confirmed directory (trailing-slash hit, 301, or directory listing), up to DEPTH levels deep (e.g. 1; 0 disables)")
     parser.add_argument("-a", "--all", action="store_true", help="Show all status codes (except 404)")
     parser.add_argument("--no-wildcard", action="store_true", help="Disable soft-404 wildcard detection")
     parser.add_argument("--proxy", help="Proxy URL (e.g. http://127.0.0.1:8080)")
@@ -177,6 +179,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.append and not args.output:
             raise ValueError("--append requires -o/--output")
         rate_limit = parse_rate_limit(args.rate_limit)
+        recurse_depth = parse_recurse_depth(args.recurse)
         retry_on = tuple(parse_status_codes(args.retry_on)) or (429,)
         fail_on = set(parse_status_codes(args.fail_on))
         user_agent = args.user_agent
@@ -207,6 +210,9 @@ def main(argv: list[str] | None = None) -> int:
     resume_completed: list[str] = []
     if args.checkpoint and len(base_urls) > 1:
         log.error("[bold red]✗[/bold red] --checkpoint only supports single-target scans, not --targets")
+        return 2
+    if recurse_depth and (args.checkpoint or args.resume):
+        log.error("[bold red]✗[/bold red] --recurse cannot be combined with --checkpoint/--resume")
         return 2
     if args.resume:
         if args.targets:
@@ -299,6 +305,7 @@ def main(argv: list[str] | None = None) -> int:
                         random_agent=args.random_agent,
                         retry_on=retry_on,
                         show_progress=not args.no_progress,
+                        recurse_depth=recurse_depth,
                     )
                 )
             )
@@ -439,10 +446,16 @@ def main(argv: list[str] | None = None) -> int:
             if total_dupes
             else ""
         )
+        total_recursed = sum(summary.recursed_directories for summary in summaries)
+        recurse_note = (
+            f" ({total_recursed} director{'y' if total_recursed == 1 else 'ies'} recursed into)"
+            if total_recursed
+            else ""
+        )
         if len(base_urls) > 1:
-            console.print(f"\n[dim]Finished in {duration:.2f}s. Total hits across {len(base_urls)} targets: {total_hits}{filtered_note}{listing_note}{status_note}{duplicate_note}[/dim]")
+            console.print(f"\n[dim]Finished in {duration:.2f}s. Total hits across {len(base_urls)} targets: {total_hits}{filtered_note}{listing_note}{status_note}{duplicate_note}{recurse_note}[/dim]")
         else:
-            console.print(f"\n[dim]Finished in {duration:.2f}s. Total hits: {total_hits}{filtered_note}{listing_note}{status_note}{duplicate_note}[/dim]")
+            console.print(f"\n[dim]Finished in {duration:.2f}s. Total hits: {total_hits}{filtered_note}{listing_note}{status_note}{duplicate_note}{recurse_note}[/dim]")
         latency_summary = render_latency_summary(hits)
         if latency_summary:
             console.print(f"[dim]Latency: {latency_summary}[/dim]")

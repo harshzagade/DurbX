@@ -93,6 +93,7 @@ def print_help():
             ("--retry-on", "Statuses to retry like 429 [dim](e.g. 500,502,503; default: 429 only)[/dim]"),
             ("--no-wildcard", "Disable soft-404 wildcard detection"),
             ("--follow-redirects", "Follow 3xx redirects [dim](default: report them)[/dim]"),
+            ("--recurse", "Replay the wordlist under discovered directories [dim](DEPTH levels; a hit counts as a directory when it is a trailing-slash path, a 301, or a directory listing)[/dim]"),
         ],
         "OUTPUT & LOGGING": [
             ("--proxy", "HTTP proxy URL"),

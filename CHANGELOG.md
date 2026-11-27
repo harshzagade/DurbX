@@ -6,6 +6,19 @@ All notable changes to DurbX are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `--recurse DEPTH`: replay the wordlist under each discovered directory,
+  up to DEPTH levels deep, so nested paths are found in one run. A hit
+  counts as a directory when it is a trailing-slash path, a 301/302/307/308
+  (to a trailing-slash target, same-origin only), or a 200 directory
+  listing; unconfirmed statuses (e.g. 403 on a slash path) never recurse.
+  Already-scanned entries are never re-queued, so looping directory trees
+  cannot spin forever. The final summary reports how many directories were
+  recursed into, and `--json` stats carry `recursed_directories`. Recursion
+  is independent of the display filters, so a 301 to `/admin/` still
+  recurses even when the status filter hides 301s. Incompatible with
+  `--checkpoint`/`--resume` (fail fast with exit 2); `parse_recurse_depth()`
+  fails fast with exit 2 on non-integer or negative values. 15 new unit
+  tests.
 - `--grep PATTERN`: search the first 8 KB of each hit's 200 body (the
   window already read for listing/hash/title checks) for a regex and tag
   matching hits as `(grep: <pattern>)` in terminal, `-o`, and

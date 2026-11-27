@@ -277,6 +277,9 @@ def render_json_report(
         "duplicate_bodies_collapsed": sum(
             summary.duplicate_bodies_collapsed for summary in summaries
         ),
+        "recursed_directories": sum(
+            summary.recursed_directories for summary in summaries
+        ),
         "tech_headers": _aggregate_tech_headers(summaries),
         "status_counts": _aggregate_status_counts(summaries),
         "avg_latency_ms": (

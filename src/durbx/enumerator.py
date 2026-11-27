@@ -106,6 +106,10 @@ class ScanSummary:
     # e.g. {"Server": {"nginx/1.18.0": 2}, "X-Powered-By": {"PHP/8.1": 1}}.
     # Only rows that pass the display filters are counted.
     tech_headers: dict[str, dict[str, int]] = field(default_factory=dict)
+    # Directories recursed into by --recurse (one per discovered
+    # directory prefix, across all levels), so the summary can say how
+    # much extra tree the scan walked.
+    recursed_directories: int = 0
 
 
 @dataclass(frozen=True)
@@ -402,6 +406,24 @@ def parse_max_size(raw_value: str | None) -> int | None:
     if size < 0:
         raise ValueError(f"Invalid maximum body size (must be >= 0): {raw_value}")
     return size
+
+
+def parse_recurse_depth(raw_value: str | None) -> int:
+    """Parse the ``--recurse DEPTH`` value into a non-negative int.
+
+    Returns ``0`` (recursion off) when the flag was not given. Raises
+    ``ValueError`` for non-integer or negative values — a negative depth
+    can never recurse, so it is almost certainly a typo.
+    """
+    if not raw_value:
+        return 0
+    try:
+        depth = int(raw_value.strip())
+    except ValueError as exc:
+        raise ValueError(f"Invalid recursion depth: {raw_value}") from exc
+    if depth < 0:
+        raise ValueError(f"Invalid recursion depth (must be >= 0): {raw_value}")
+    return depth
 
 
 def parse_filter_lengths(raw_value: str | None) -> list[int]:
@@ -1023,6 +1045,57 @@ def is_wildcard_match(
     )
 
 
+def is_directory_hit(result: ScanResult) -> bool:
+    """True when a result looks like a real directory (``--recurse``).
+
+    A hit counts as a directory when it resolved (200) or redirected
+    (301/302/307/308) AND one of the signals says "directory": the path
+    ends with ``/``, the 200 body is a server autoindex listing, or a
+    3xx ``Location`` points at a trailing-slash path. A 403 on ``admin/``
+    is not a directory (unconfirmed), and a 301 to a bare file is not
+    one either — both stay out so recursion only walks confirmed dirs.
+    """
+    if result.status_code not in (200, 301, 302, 307, 308):
+        return False
+    if result.path.endswith("/"):
+        return True
+    if result.is_directory_listing:
+        return True
+    if result.redirect_target and result.redirect_target.endswith("/"):
+        return True
+    return False
+
+
+def directory_prefix(result: ScanResult, base_url: str) -> str | None:
+    """The ``/prefix/`` to recurse under for a directory hit, or ``None``.
+
+    Prefers the hit's own trailing-slash path, then a directory-listing
+    path (``/admin`` + ``/``), then a 3xx redirect target ending in
+    ``/``. A redirect target is only trusted when it stays on the same
+    origin — an off-site redirect (e.g. to a CDN login page) is not
+    part of this target's tree and returns ``None``.
+    """
+    if result.path.endswith("/"):
+        prefix = result.path
+    elif result.is_directory_listing:
+        prefix = result.path + "/"
+    elif result.redirect_target and result.redirect_target.endswith("/"):
+        parsed = urlparse(result.redirect_target)
+        base = urlparse(base_url)
+        if parsed.netloc and parsed.netloc != base.netloc:
+            return None
+        if not parsed.path:
+            return None
+        prefix = parsed.path
+    else:
+        return None
+    if not prefix.startswith("/"):
+        prefix = "/" + prefix
+    if not prefix.endswith("/"):
+        prefix += "/"
+    return prefix
+
+
 def should_show_result(
     result: ScanResult,
     status_filter: list[int] | None = None,
@@ -1105,6 +1178,7 @@ async def enumerate_directories(
     random_agent: bool = False,
     retry_on: tuple[int, ...] | None = None,
     show_progress: bool = True,
+    recurse_depth: int = 0,
 ) -> ScanSummary:
     status_filter = status_filter or []
     exclude_filter = exclude_filter or []
@@ -1113,7 +1187,26 @@ async def enumerate_directories(
     # None means "only 429" — the historical default; an explicit empty
     # tuple would mean "never retry", which --retries 0 already covers.
     retry_on = retry_on if retry_on is not None else (429,)
+    # Recursion replays the checkpoint's entry list under each discovered
+    # directory, so a checkpoint written mid-recursion would describe a
+    # moving entry list — the two are incompatible (the CLI rejects the
+    # combination with exit 2; this guards direct library callers).
+    if recurse_depth > 0 and checkpoint_file is not None:
+        raise ValueError("--recurse cannot be combined with --checkpoint/--resume")
     entries = expand_extensions(entries, extensions or [])
+    # The level-0 entries, reused as the wordlist replayed under each
+    # discovered directory (already extension-expanded, so variants like
+    # admin.php appear under api/ too).
+    base_entries = list(entries)
+    # Every entry ever queued, across levels: a candidate already scanned
+    # at any level is never queued again, so a directory tree that loops
+    # back on itself (admin/ -> admin/admin/) cannot spin forever.
+    seen_entries: set[str] = set(entries)
+    # Directory prefixes already recursed into, and the ones found at
+    # the current level (collected by scan(), reset between levels).
+    recursed_prefixes: set[str] = set()
+    level_directories: list[str] = []
+    recursed_directories = 0
     total = len(entries) + len(resume_completed or [])
     completed = 0
     hits = 0
@@ -1256,7 +1349,8 @@ async def enumerate_directories(
             # matters for resume).
             completed_entries.append(entry)
             _maybe_checkpoint()
-            if is_wildcard_match(result, fingerprint):
+            wildcard_hit = is_wildcard_match(result, fingerprint)
+            if wildcard_hit:
                 # Soft-404 noise: same status + body size as the probe of a
                 # random nonexistent path. Hidden, but counted separately so
                 # the user can see the filter did something.
@@ -1305,6 +1399,15 @@ async def enumerate_directories(
                         on_result(result)
                     else:
                         print(f"{result.path} {result.status_code}")
+            if not wildcard_hit and is_directory_hit(result):
+                # A confirmed directory (not soft-404 noise): record its
+                # prefix for --recurse, which replays the wordlist under
+                # it at the next level. Collected independently of the
+                # display filters above, so a 301 to /admin/ still
+                # recurses even when the status filter hides 301s.
+                prefix = directory_prefix(result, base_url)
+                if prefix is not None:
+                    level_directories.append(prefix)
             render_progress(force=completed == total)
         return result
 
@@ -1360,15 +1463,40 @@ async def enumerate_directories(
                 )
         worker_count = max(1, threads)
         _write_checkpoint(finished=False)
-        for entry in entries:
-            queue.put_nowait(entry)
-        for _ in range(worker_count):
-            queue.put_nowait(None)
-
-        tasks = [asyncio.create_task(worker(session)) for _ in range(worker_count)]
+        level = 0
+        tasks: list[asyncio.Task] = []
         try:
-            await queue.join()
-            await asyncio.gather(*tasks)
+            while True:
+                for entry in entries:
+                    queue.put_nowait(entry)
+                for _ in range(worker_count):
+                    queue.put_nowait(None)
+
+                tasks = [asyncio.create_task(worker(session)) for _ in range(worker_count)]
+                await queue.join()
+                await asyncio.gather(*tasks)
+                if recurse_depth <= 0 or level >= recurse_depth:
+                    break
+                # Directories found at this level that have not been
+                # recursed into yet (sorted so the level order is stable).
+                new_prefixes = sorted(set(level_directories) - recursed_prefixes)
+                if not new_prefixes:
+                    break
+                next_entries: list[str] = []
+                for prefix in new_prefixes:
+                    for base_entry in base_entries:
+                        candidate = f"{prefix.lstrip('/')}{base_entry}"
+                        if candidate not in seen_entries:
+                            seen_entries.add(candidate)
+                            next_entries.append(candidate)
+                if not next_entries:
+                    break
+                recursed_prefixes.update(new_prefixes)
+                recursed_directories += len(new_prefixes)
+                total += len(next_entries)
+                level += 1
+                level_directories = []
+                entries = next_entries
         except asyncio.CancelledError:
             # Ctrl-C (or any cancellation) mid-scan: persist progress
             # before dying, so the run is resumable instead of losing
@@ -1377,7 +1505,7 @@ async def enumerate_directories(
             # (join done, gather still draining) is marked finished, so
             # --resume correctly refuses to re-run it.
             _write_checkpoint(
-                finished=len(completed_entries) == len(entries)
+                finished=len(completed_entries) == len(seen_entries)
             )
             for task in tasks:
                 if not task.done():
@@ -1401,4 +1529,5 @@ async def enumerate_directories(
         duplicate_bodies_collapsed=duplicate_bodies_collapsed,
         duplicate_body_counts=body_hash_counts,
         tech_headers=tech_headers,
+        recursed_directories=recursed_directories,
     )
